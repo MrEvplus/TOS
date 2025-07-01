@@ -36,7 +36,7 @@ if os.path.exists(DATA_PATH):
         df = pd.read_excel(DATA_PATH, sheet_name=None)
         df = list(df.values())[0]
 
-        # ✅ Pulizia nomi colonne
+        # Pulizia nomi colonne
         df.columns = (
             df.columns
             .astype(str)
@@ -83,7 +83,16 @@ df["btts"] = np.where(
 )
 
 # -------------------------------
-# CALCOLO GOAL BANDS
+# Dropdown selezione campionato
+# -------------------------------
+countries = sorted(df["country"].dropna().unique().tolist())
+country_sel = st.selectbox("🌍 Seleziona Campionato", countries)
+
+# Filtra il dataframe
+df_filtered = df[df["country"] == country_sel]
+
+# -------------------------------
+# CALCOLO GOAL BANDS sul campionato filtrato
 # -------------------------------
 
 def classify_goal_minute(minute):
@@ -129,21 +138,19 @@ goal_cols_away = [
 
 goal_minutes = []
 for col in goal_cols_home + goal_cols_away:
-    if col in df.columns:
+    if col in df_filtered.columns:
         goal_minutes.extend(
-            df[col].dropna().apply(classify_goal_minute).values
+            df_filtered[col].dropna().apply(classify_goal_minute).values
         )
 
 goal_band_counts = pd.Series(goal_minutes).value_counts(normalize=True).sort_index()
 goal_band_perc = (goal_band_counts * 100).to_dict()
 
 # -------------------------------
-# RAGGRUPPA League Stats Summary
+# League Stats Summary (campionato filtrato)
 # -------------------------------
 
-group_cols = ["country", "Stagione"]
-
-grouped = df.groupby(group_cols).agg(
+grouped = df_filtered.groupby(["country", "Stagione"]).agg(
     Matches=("Home", "count"),
     HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
     Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
@@ -165,25 +172,14 @@ grouped = df.groupby(group_cols).agg(
 cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
 grouped[cols_pct] = grouped[cols_pct].round(2)
 
-# -------------------------------
-# Visualizza League Stats Summary
-# -------------------------------
-
-countries = sorted(df["country"].dropna().unique().tolist())
-country_sel = st.selectbox("🌍 Seleziona Paese", ["Tutti"] + countries)
-
-filtered_grouped = grouped.copy()
-if country_sel != "Tutti":
-    filtered_grouped = grouped[grouped["country"] == country_sel]
-
-st.subheader("League Stats Summary")
-st.dataframe(filtered_grouped, use_container_width=True)
+st.subheader(f"League Stats Summary - {country_sel}")
+st.dataframe(grouped, use_container_width=True)
 
 # -------------------------------
 # Visualizza GRAFICO GOAL BANDS
 # -------------------------------
 
-st.subheader("Distribuzione gol per fasce tempo (tutti campionati)")
+st.subheader(f"Distribuzione gol per fasce tempo - {country_sel}")
 
 if goal_band_perc:
     chart_data = pd.DataFrame({
@@ -209,7 +205,7 @@ else:
 # League Data by Start Price
 # -------------------------------
 
-st.subheader("League Data by Start Price")
+st.subheader(f"League Data by Start Price - {country_sel}")
 
 # Etichetta le righe in base alle quote
 def label_match(row):
@@ -220,26 +216,25 @@ def label_match(row):
     if h < 1.5:
         label = "H_StrongFav <1.5"
     elif 1.5 <= h < 2:
-        label = "H_MediumFav 1.5>H<2"
+        label = "H_MediumFav 1.5-2"
     elif 2 <= h < 3:
-        label = "H_SmallFav 2>H<3"
-    elif h <= 3 and a <= 3:
+        label = "H_SmallFav 2-3"
+    elif h < 3 and a < 3:
         label = "SuperCompetitive H-A<3"
     elif a < 1.5:
         label = "A_StrongFav <1.5"
     elif 1.5 <= a < 2:
-        label = "A_MediumFav 1.5>A<2"
+        label = "A_MediumFav 1.5-2"
     elif 2 <= a < 3:
-        label = "A_SmallFav 2>A<3"
+        label = "A_SmallFav 2-3"
     else:
         label = "Others"
 
     return label
 
-df["Label"] = df.apply(label_match, axis=1)
+df_filtered["Label"] = df_filtered.apply(label_match, axis=1)
 
-# Calcola statistiche
-group_label = df.groupby("Label").agg(
+group_label = df_filtered.groupby("Label").agg(
     Matches=("Home", "count"),
     HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
     Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
@@ -261,3 +256,4 @@ group_label = df.groupby("Label").agg(
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
 st.dataframe(group_label, use_container_width=True)
+
