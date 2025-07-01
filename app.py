@@ -200,17 +200,17 @@ AgGrid(
 )
 
 # -------------------------------
-# Tabella orizzontale Goal Time Frame
+# Tabella orizzontale Goal Time Frame con % e colori
 # -------------------------------
 st.subheader("✅ Distribuzione Goal Time Frame (stile Excel)")
 
 time_bands = {
-    "0-15": (0,15),
-    "16-30": (16,30),
-    "31-45": (31,45),
-    "46-60": (46,60),
-    "61-75": (61,75),
-    "76-90": (76,120)
+    "0-15": (0, 15),
+    "16-30": (16, 30),
+    "31-45": (31, 45),
+    "46-60": (46, 60),
+    "61-75": (61, 75),
+    "76-90": (76, 120)
 }
 
 def extract_minutes(series):
@@ -223,7 +223,6 @@ def extract_minutes(series):
                     all_minutes.append(int(part))
     return all_minutes
 
-# Costruisci una tabella orizzontale
 rows = []
 
 for label in df["Label"].dropna().unique():
@@ -241,30 +240,81 @@ for label in df["Label"].dropna().unique():
         minutes_scored = minutes_home + minutes_away
         minutes_conceded = []
 
-    row = {"Label": label}
+    scored_counts = {}
+    conceded_counts = {}
+
     for band, (low, high) in time_bands.items():
         goals_scored = sum(1 for m in minutes_scored if low <= m <= high)
         goals_conceded = sum(1 for m in minutes_conceded if low <= m <= high)
-        row[f"{band} Scored"] = goals_scored
-        row[f"{band} Conceded"] = goals_conceded
+        scored_counts[band] = goals_scored
+        conceded_counts[band] = goals_conceded
 
-    row["Total Scored"] = sum(row[f"{band} Scored"] for band in time_bands)
-    row["Total Conceded"] = sum(row[f"{band} Conceded"] for band in time_bands)
+    total_scored = sum(scored_counts.values())
+    total_conceded = sum(conceded_counts.values())
 
+    scored_perc = {
+        band: round((scored_counts[band]/total_scored * 100), 2) if total_scored > 0 else 0.00
+        for band in time_bands
+    }
+    conceded_perc = {
+        band: round((conceded_counts[band]/total_conceded * 100), 2) if total_conceded > 0 else 0.00
+        for band in time_bands
+    }
+
+    row = {"Label": label}
+    for band in time_bands:
+        row[f"{band} Scored (n)"] = scored_counts[band]
+        row[f"{band} Scored (%)"] = scored_perc[band]
+        row[f"{band} Conceded (n)"] = conceded_counts[band]
+        row[f"{band} Conceded (%)"] = conceded_perc[band]
+
+    row["Total Scored"] = total_scored
+    row["Total Conceded"] = total_conceded
     rows.append(row)
 
 if rows:
     df_final = pd.DataFrame(rows)
 
+    # Ordine colonne
+    columns_ordered = ["Label"]
+    for band in time_bands:
+        columns_ordered.append(f"{band} Scored (n)")
+        columns_ordered.append(f"{band} Scored (%)")
+        columns_ordered.append(f"{band} Conceded (n)")
+        columns_ordered.append(f"{band} Conceded (%)")
+    columns_ordered += ["Total Scored", "Total Conceded"]
+    df_final = df_final[columns_ordered]
+
+    # Costruisci AgGrid con colori
     gb = GridOptionsBuilder.from_dataframe(df_final)
     gb.configure_default_column(filterable=True, sortable=True, resizable=True)
+
+    # Colorazione dinamica
+    for col in df_final.columns:
+        if "Scored (%)" in col:
+            gb.configure_column(
+                col,
+                cellStyle=lambda params: {
+                    "backgroundColor": f"rgba(0, 200, 0, {params.value/100})" if params.value > 0 else "",
+                    "color": "black"
+                }
+            )
+        elif "Conceded (%)" in col:
+            gb.configure_column(
+                col,
+                cellStyle=lambda params: {
+                    "backgroundColor": f"rgba(255, 0, 0, {params.value/100})" if params.value > 0 else "",
+                    "color": "black"
+                }
+            )
+
     grid_options = gb.build()
 
     AgGrid(
         df_final,
         gridOptions=grid_options,
         theme="material",
-        height=500,
+        height=600,
         fit_columns_on_grid_load=True
     )
 else:
