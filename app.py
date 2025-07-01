@@ -14,7 +14,7 @@ DATA_PATH = os.path.join(DATA_FOLDER, DATA_FILE)
 st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
 
 # -------------------------------
-# Sezione Upload file
+# Upload file
 # -------------------------------
 st.title("Serie A Trading Dashboard")
 
@@ -219,7 +219,7 @@ def label_match(row):
         label = "H_MediumFav 1.5-2"
     elif 2 <= h < 3:
         label = "H_SmallFav 2-3"
-    elif h <= 3 and a <= 3:
+    elif h < 3 and a < 3:
         label = "SuperCompetitive H-A<3"
     elif a < 1.5:
         label = "A_StrongFav <1.5"
@@ -255,10 +255,17 @@ group_label = df_filtered.groupby("Label").agg(
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
-# 🔥 NEW - TABELLA HTML MULTI-HEADER
-import pandas as pd
+# Aggiungo colonne "First To Score" dummy
+group_label["FirstToScore_Home"] = 0
+group_label["FirstToScore_HWin"] = 0
+group_label["FirstToScore_Away"] = 0
+group_label["FirstToScore_AWin"] = 0
 
-# Definisci le intestazioni multi-riga
+# -------------------------------
+# CREAZIONE TABELLA MULTI-HEADER HTML
+# -------------------------------
+
+# Costruisci intestazioni multi-riga
 top_header = [
     "League", 
     "Match Result", "Match Result", "Match Result",
@@ -289,7 +296,7 @@ final_cols = [
     "Over0_5_FH_pct", "Over1_5_FH_pct", "Over2_5_FH_pct",
     "Over0_5_FT_pct", "Over1_5_FT_pct", "Over2_5_FT_pct",
     "BTTS_pct",
-    "HomeWin_pct", "HomeWin_pct", "AwayWin_pct", "AwayWin_pct"
+    "FirstToScore_Home", "FirstToScore_HWin", "FirstToScore_Away", "FirstToScore_AWin"
 ]
 
 df_html = group_label[final_cols].copy()
@@ -302,8 +309,6 @@ html_table = df_html.to_html(
     classes='dataframe table table-striped table-bordered'
 )
 
-st.markdown("## ✅ League Data by Start
-
-
-st.dataframe(group_label, use_container_width=True)
+st.markdown("## ✅ League Data by Start Price (Versione HTML - stile Screenshot)")
+st.markdown(html_table, unsafe_allow_html=True)
 
