@@ -157,13 +157,11 @@ grouped[cols_pct] = grouped[cols_pct].round(2)
 # LEAGUE DATA BY START PRICE
 # -------------------------------
 
-# Funzione per classificare fascia quota
 def label_match(row):
     try:
         h = row["Odd home"]
         a = row["Odd Away"]
     except KeyError:
-        # se non trova la colonna, mostra colonne disponibili
         st.write("Colonne disponibili nel file:", df.columns.tolist())
         return "Unknown"
 
@@ -173,7 +171,7 @@ def label_match(row):
         return "H_MediumFav"
     elif 2.0 <= h < 3.0:
         return "H_SmallFav"
-    elif h >= 3.0 and a >= 3.0:
+    elif h < 3.0 and a < 3.0:
         return "SuperCompetitive"
     elif 2.0 <= a < 3.0:
         return "A_SmallFav"
@@ -184,7 +182,6 @@ def label_match(row):
     else:
         return "Other"
 
-# Applica classificazione
 if "Odd home" in df.columns and "Odd Away" in df.columns:
     df["Label"] = df.apply(label_match, axis=1)
 
