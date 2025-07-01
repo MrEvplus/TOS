@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import os
-import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 # -------------------------------
@@ -205,22 +204,18 @@ AgGrid(
     group_label,
     gridOptions=grid_options,
     theme="material",
-    height=300,
+    height=400,
     fit_columns_on_grid_load=True
 )
 
 # -------------------------------
-# Distribuzione gol segnati / subiti per fasce tempo per LABEL
+# Distribuzione gol segnati/subiti per fasce tempo PER LABEL
 # -------------------------------
 
 st.subheader(f"Distribuzione gol segnati e subiti per fasce tempo - {db_selected}")
 
-# Funzione utility per estrarre minuti da stringa tipo "28;54;76"
+# Funzione utility per estrarre minuti
 def extract_minutes(series):
-    """
-    Prende una colonna di minuti goal (stringa es. "23;45") e
-    restituisce una lista di tutti i minuti come interi.
-    """
     all_minutes = []
     for val in series.dropna():
         if isinstance(val, str):
@@ -237,36 +232,27 @@ time_bands = {
     "31-45": (31,45),
     "46-60": (46,60),
     "61-75": (61,75),
-    "76-90": (76,120),  # includiamo eventuali extra time
+    "76-90": (76,120),
 }
 
-# Dizionario risultati per ciascuna Label
 final_results = {}
 
-# Loop per ogni Label
 for label in df["Label"].dropna().unique():
     sub_df = df[df["Label"] == label]
 
-    # Estrai minuti goal Home
     minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-    # Estrai minuti goal Away
     minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
 
-    # Stabilisci chi è la squadra di riferimento per la Label
     if label.startswith("H_"):
-        # squadre Home
         minutes_scored = minutes_home
         minutes_conceded = minutes_away
     elif label.startswith("A_"):
-        # squadre Away
         minutes_scored = minutes_away
         minutes_conceded = minutes_home
     else:
-        # SuperCompetitive → somma tutto
         minutes_scored = minutes_home + minutes_away
-        minutes_conceded = []  # nulla da considerare come "subito" perché è bilanciato
+        minutes_conceded = []
 
-    # Conta i goal nelle fasce
     scored_counts = {band: 0 for band in time_bands}
     conceded_counts = {band: 0 for band in time_bands}
 
@@ -285,11 +271,9 @@ for label in df["Label"].dropna().unique():
     total_scored = sum(scored_counts.values())
     total_conceded = sum(conceded_counts.values())
 
-    # Calcola percentuali
     scored_perc = {band: (val/total_scored*100 if total_scored>0 else 0) for band,val in scored_counts.items()}
     conceded_perc = {band: (val/total_conceded*100 if total_conceded>0 else 0) for band,val in conceded_counts.items()}
 
-    # Salva i dati
     final_results[label] = {
         "scored_counts": scored_counts,
         "conceded_counts": conceded_counts,
@@ -299,12 +283,10 @@ for label in df["Label"].dropna().unique():
         "total_conceded": total_conceded
     }
 
-# Visualizza tabella e grafico per ciascuna label
 if final_results:
     for label, data in final_results.items():
         st.markdown(f"### **Label: {label}**")
 
-        # Costruisci DataFrame per tabella
         df_band = pd.DataFrame({
             "Time Band": list(time_bands.keys()),
             "Goals Scored": [data["scored_counts"][band] for band in time_bands],
@@ -313,29 +295,38 @@ if final_results:
             "% Conceded": [round(data["conceded_perc"][band],2) for band in time_bands],
         })
 
-        # Aggiungi total row
         df_band.loc["Total"] = [
             "Total",
             data["total_scored"],
-            100.0 if data["total_scored"]>0 else 0,
+            100.0 if data["total_scored"] > 0 else 0,
             data["total_conceded"],
-            100.0 if data["total_conceded"]>0 else 0
+            100.0 if data["total_conceded"] > 0 else 0
         ]
 
-        # Visualizza tabella
-        st.dataframe(df_band, use_container_width=True)
+        # ✅ AGGRID stile Excel
+        gb2 = GridOptionsBuilder.from_dataframe(df_band)
+        gb2.configure_default_column(filterable=True, sortable=True, resizable=True)
+        grid_options2 = gb2.build()
 
-        # Grafico stacked bar chart
+        AgGrid(
+            df_band,
+            gridOptions=grid_options2,
+            theme="material",
+            height=300,
+            fit_columns_on_grid_load=True
+        )
+
+        # ✅ Grafico
         if data["total_scored"] > 0 or data["total_conceded"] > 0:
             fig = px.bar(
-                df_band.iloc[:-1],  # escludi riga Total
+                df_band.iloc[:-1],
                 x="Time Band",
                 y=["Goals Scored", "Goals Conceded"],
                 title=f"Distribuzione gol segnati e subiti - {label}",
-                labels={"value":"Numero Goal", "variable":"Tipo"},
+                labels={"value": "Numero Goal", "variable": "Tipo"},
                 color_discrete_map={
-                    "Goals Scored":"green",
-                    "Goals Conceded":"red"
+                    "Goals Scored": "green",
+                    "Goals Conceded": "red"
                 },
                 barmode="stack",
                 text_auto=True
