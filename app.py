@@ -12,20 +12,22 @@ from st_aggrid import AgGrid, GridOptionsBuilder
 DATA_FOLDER = "data"
 
 st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
+
+# -------------------------------
+# Sezione Upload file multipli
+# -------------------------------
 st.title("Serie A Trading Dashboard")
 
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
 
-# -------------------------------
-# Sezione Upload file multipli
-# -------------------------------
 uploaded_files = st.file_uploader(
     "Carica uno o più database Excel:",
     type=["xlsx"],
     accept_multiple_files=True
 )
 
+# Salva i file caricati
 if uploaded_files:
     for uploaded_file in uploaded_files:
         save_path = os.path.join(DATA_FOLDER, uploaded_file.name)
@@ -33,6 +35,7 @@ if uploaded_files:
             f.write(uploaded_file.read())
     st.success("✅ File caricati e salvati!")
 
+# Lista dei file presenti nella cartella data
 db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 if not db_files:
     st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
@@ -52,6 +55,7 @@ try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
     df = list(df.values())[0]
 
+    # Pulizia nomi colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -69,7 +73,7 @@ except Exception as e:
     st.stop()
 
 # -------------------------------
-# Filtro partite già giocate
+# Filtro partite già giocate (stagione in corso)
 # -------------------------------
 if "Data" in df.columns:
     df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
@@ -83,6 +87,7 @@ df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
 df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
 
+# Esito match
 df["match_result"] = np.select(
     [
         df["Home Goal FT"] > df["Away Goal FT"],
@@ -93,6 +98,7 @@ df["match_result"] = np.select(
     default="Unknown"
 )
 
+# BTTS
 df["btts"] = np.where(
     (df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0),
     1, 0
@@ -144,6 +150,7 @@ def label_match(row):
     a = row.get("Odd Away", np.nan)
     if pd.isna(h) or pd.isna(a):
         return "Others"
+
     if h < 1.5:
         return "H_StrongFav <1.5"
     elif 1.5 <= h < 2:
@@ -165,25 +172,26 @@ df["Label"] = df.apply(label_match, axis=1)
 
 group_label = df.groupby("Label").agg(
     Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
+    Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
+    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean()*100),
     AvgGoals1T=("goals_1st_half", "mean"),
     AvgGoals2T=("goals_2nd_half", "mean"),
     AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean()*100),
+    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean()*100),
+    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean()*100),
+    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean()*100),
+    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean()*100),
+    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean()*100),
+    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean()*100),
+    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean()*100),
     BTTS_pct=("btts", "mean")
 ).reset_index()
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
+# Mostra AgGrid
 gb = GridOptionsBuilder.from_dataframe(group_label)
 gb.configure_default_column(filterable=True, sortable=True, resizable=True)
 grid_options = gb.build()
@@ -197,19 +205,11 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione Goal Time Frame (stile Excel con colori)
+# Distribuzione gol segnati / subiti per fasce tempo per LABEL
 # -------------------------------
-st.subheader("✅ Distribuzione Goal Time Frame (stile Excel)")
+st.subheader(f"✅ Distribuzione Goal Time Frame (stile Excel)")
 
-time_bands = {
-    "0-15": (0, 15),
-    "16-30": (16, 30),
-    "31-45": (31, 45),
-    "46-60": (46, 60),
-    "61-75": (61, 75),
-    "76-90": (76, 120)
-}
-
+# Funzione utility per estrarre minuti da stringa tipo "28;54;76"
 def extract_minutes(series):
     all_minutes = []
     for val in series.dropna():
@@ -220,7 +220,16 @@ def extract_minutes(series):
                     all_minutes.append(int(part))
     return all_minutes
 
-rows = []
+time_bands = {
+    "0-15": (0,15),
+    "16-30": (16,30),
+    "31-45": (31,45),
+    "46-60": (46,60),
+    "61-75": (61,75),
+    "76-90": (76,120),
+}
+
+final_results = {}
 
 for label in df["Label"].dropna().unique():
     sub_df = df[df["Label"] == label]
@@ -237,40 +246,51 @@ for label in df["Label"].dropna().unique():
         minutes_scored = minutes_home + minutes_away
         minutes_conceded = []
 
-    scored_counts = {}
-    conceded_counts = {}
+    scored_counts = {band: 0 for band in time_bands}
+    conceded_counts = {band: 0 for band in time_bands}
 
-    for band, (low, high) in time_bands.items():
-        goals_scored = sum(1 for m in minutes_scored if low <= m <= high)
-        goals_conceded = sum(1 for m in minutes_conceded if low <= m <= high)
-        scored_counts[band] = goals_scored
-        conceded_counts[band] = goals_conceded
+    for m in minutes_scored:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                scored_counts[band] += 1
+                break
+
+    for m in minutes_conceded:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                conceded_counts[band] += 1
+                break
 
     total_scored = sum(scored_counts.values())
     total_conceded = sum(conceded_counts.values())
 
-    scored_perc = {
-        band: round((scored_counts[band] / total_scored * 100), 2) if total_scored > 0 else 0.00
-        for band in time_bands
-    }
-    conceded_perc = {
-        band: round((conceded_counts[band] / total_conceded * 100), 2) if total_conceded > 0 else 0.00
-        for band in time_bands
+    scored_perc = {band: (val/total_scored*100 if total_scored>0 else 0) for band,val in scored_counts.items()}
+    conceded_perc = {band: (val/total_conceded*100 if total_conceded>0 else 0) for band,val in conceded_counts.items()}
+
+    final_results[label] = {
+        "scored_counts": scored_counts,
+        "conceded_counts": conceded_counts,
+        "scored_perc": scored_perc,
+        "conceded_perc": conceded_perc,
+        "total_scored": total_scored,
+        "total_conceded": total_conceded
     }
 
+rows = []
+for label, data in final_results.items():
     row = {"Label": label}
-    for band in time_bands:
-        row[f"{band} Scored (n)"] = scored_counts[band]
-        row[f"{band} Scored (%)"] = scored_perc[band]
-        row[f"{band} Conceded (n)"] = conceded_counts[band]
-        row[f"{band} Conceded (%)"] = conceded_perc[band]
-
-    row["Total Scored"] = total_scored
-    row["Total Conceded"] = total_conceded
+    for band in time_bands.keys():
+        row[f"{band} Scored (n)"] = data["scored_counts"][band]
+        row[f"{band} Scored (%)"] = round(data["scored_perc"][band], 2)
+        row[f"{band} Conceded (n)"] = data["conceded_counts"][band]
+        row[f"{band} Conceded (%)"] = round(data["conceded_perc"][band], 2)
+    row["Total Scored"] = data["total_scored"]
+    row["Total Conceded"] = data["total_conceded"]
     rows.append(row)
 
 if rows:
     df_final = pd.DataFrame(rows)
+    df_final = df_final.fillna(0)
 
     columns_ordered = ["Label"]
     for band in time_bands:
@@ -283,35 +303,31 @@ if rows:
     columns_ordered += ["Total Scored", "Total Conceded"]
     df_final = df_final[columns_ordered]
 
-    gb = GridOptionsBuilder.from_dataframe(df_final)
-    gb.configure_default_column(filterable=True, sortable=True, resizable=True)
+    # ✅ Styler per i colori
+    def highlight(val, color_base):
+        try:
+            if float(val) > 0:
+                alpha = min(float(val) / 100, 1)
+                return f"background-color: rgba({color_base}, {alpha});"
+        except:
+            pass
+        return ""
 
-    for col in df_final.columns:
-        if "Scored (%)" in col:
-            gb.configure_column(
-                col,
-                cellStyle=lambda params: {
-                    "backgroundColor": f"rgba(0, 200, 0, {params.value/100})" if params.value > 0 else "",
-                    "color": "black"
-                }
-            )
-        elif "Conceded (%)" in col:
-            gb.configure_column(
-                col,
-                cellStyle=lambda params: {
-                    "backgroundColor": f"rgba(255, 0, 0, {params.value/100})" if params.value > 0 else "",
-                    "color": "black"
-                }
-            )
+    def style_df(df):
+        styled = df.style
+        for col in df.columns:
+            if "Scored (%)" in col:
+                styled = styled.applymap(
+                    lambda v: highlight(v, "0, 200, 0"), subset=[col]
+                )
+            elif "Conceded (%)" in col:
+                styled = styled.applymap(
+                    lambda v: highlight(v, "255, 0, 0"), subset=[col]
+                )
+        return styled
 
-    grid_options = gb.build()
+    st.dataframe(style_df(df_final), use_container_width=True)
 
-    AgGrid(
-        df_final,
-        gridOptions=grid_options,
-        theme="material",
-        height=600,
-        fit_columns_on_grid_load=True
-    )
 else:
     st.info("⚠ Nessun dato sui minuti dei goal nel file caricato.")
+
