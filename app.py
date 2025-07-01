@@ -223,7 +223,7 @@ def label_match(row):
         label = "H_MediumFav"
     elif 2 <= h < 3:
         label = "H_SmallFav"
-    elif h >= 3 and a >= 3:
+    elif h <= 3 and a <= 3:
         label = "SuperCompetitive"
     elif a < 1.5:
         label = "A_StrongFav"
