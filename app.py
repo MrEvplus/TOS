@@ -292,4 +292,4 @@ if goal_band_perc:
     fig.update_layout(yaxis_title="% Goals", xaxis_title="Time Band")
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info(⚠️ Nessun dato sui minuti dei gol nel file caricato.")
+    st.info("⚠️ Nessun dato sui minuti dei gol nel file caricato.")
