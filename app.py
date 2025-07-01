@@ -1,75 +1,68 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import datetime
 import plotly.express as px
-from st_aggrid import AgGrid, GridOptionsBuilder
 import os
+from datetime import datetime
 
 # -------------------------------
-# UTILITY
+# COSTANTI
 # -------------------------------
-
-def classify_goal_minute(minute):
-    if pd.isna(minute):
-        return None
-    minute = int(minute)
-    if minute <= 15:
-        return "0-15"
-    elif minute <= 30:
-        return "16-30"
-    elif minute <= 45:
-        return "31-45"
-    elif minute <= 60:
-        return "46-60"
-    elif minute <= 75:
-        return "60-75"
-    else:
-        return "76-90"
-
-# -------------------------------
-# CONFIG
-# -------------------------------
-st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
-
 DATA_FOLDER = "data"
-DB_FILES = [
-    "serie a 20-25.xlsx",
-    "kor1 21-25.xlsx",
-]
+DB_FILES = []
+
+st.set_page_config(page_title="Trading Dashboard", layout="wide")
+
+# -------------------------------
+# TITOLO APP
+# -------------------------------
+st.title("Trading Dashboard")
+
+# -------------------------------
+# CREAZIONE CARTELLA DATA
+# -------------------------------
+if not os.path.exists(DATA_FOLDER):
+    os.makedirs(DATA_FOLDER)
 
 # -------------------------------
 # UPLOAD FILE
 # -------------------------------
-st.title("Serie A Trading Dashboard")
-
-uploaded_file = st.file_uploader("✅ Carica un nuovo database Excel:", type=["xlsx"])
+uploaded_file = st.file_uploader(
+    "Carica un nuovo database Excel:",
+    type=["xlsx"],
+    help="Limite 200MB per file"
+)
 
 if uploaded_file is not None:
-    file_path = f"{DATA_FOLDER}/{uploaded_file.name}"
+    file_path = os.path.join(DATA_FOLDER, uploaded_file.name)
     with open(file_path, "wb") as f:
         f.write(uploaded_file.read())
     st.success(f"✅ File `{uploaded_file.name}` caricato con successo!")
 
 # -------------------------------
-# SELEZIONA FILE DA USARE
+# SELEZIONE FILE DA USARE
 # -------------------------------
 all_files = DB_FILES
 for f in os.listdir(DATA_FOLDER):
     if f.endswith(".xlsx") and f not in all_files:
         all_files.append(f)
 
+if not all_files:
+    st.warning("⚠ Nessun database presente. Carica almeno un file Excel per iniziare.")
+    st.stop()
+
 selected_file = st.selectbox("📂 Seleziona il database da analizzare:", all_files)
 
 DATA_PATH = os.path.join(DATA_FOLDER, selected_file)
 
 # -------------------------------
-# CARICA DATABASE
+# LETTURA FILE EXCEL
 # -------------------------------
 try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
     df = list(df.values())[0]
 
+    # Pulizia nomi colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -78,157 +71,59 @@ try:
         .str.replace(r"\s+", " ", regex=True)
     )
 
-    st.success(f"✅ Database `{selected_file}` caricato!")
+    st.success("✅ Database caricato automaticamente!")
+    st.write("Colonne presenti nel database:")
+    st.write(df.columns.tolist())
 
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
     st.stop()
 
 # -------------------------------
-# FILTRA PARTITE FUTURE
+# FILTRO STAGIONE CORRENTE
 # -------------------------------
-if "Data" in df.columns and "Orario" in df.columns:
-    df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
-    df["Orario"] = df["Orario"].astype(str).str.zfill(4)
-    df["DataOra"] = pd.to_datetime(
-        df["Data"].dt.strftime("%Y-%m-%d") + " " +
-        df["Orario"].str.slice(0, 2) + ":" +
-        df["Orario"].str.slice(2, 4),
-        format="%Y-%m-%d %H:%M",
-        errors="coerce"
-    )
+# Se la stagione corrente è selezionata,
+# considera solo partite fino alla data odierna
+if "Data" in df.columns:
+    df["Data"] = pd.to_datetime(df["Data"], errors="coerce", dayfirst=True)
 
-    now = datetime.datetime.now()
-    initial_len = len(df)
-    df = df[df["DataOra"] <= now]
-    st.success(
-        f"✅ Filtrate solo partite giocate fino al {now.strftime('%Y-%m-%d %H:%M')}. "
-        f"Righe rimaste: {len(df)} (da {initial_len})"
-    )
-else:
-    st.warning("⚠ Nessuna colonna Data/Orario trovata. Impossibile filtrare le partite future.")
+today = pd.Timestamp.today().normalize()
+stagione_corrente = df["Stagione"].max()
+
+mask_corrente = ~(
+    (df["Stagione"] == stagione_corrente) &
+    (df["Data"] > today)
+)
+
+df_filtered = df.loc[mask_corrente]
 
 # -------------------------------
 # CALCOLI BASE
 # -------------------------------
-df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
-df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
-df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
+df_filtered["goals_total"] = df_filtered["Home Goal FT"] + df_filtered["Away Goal FT"]
+df_filtered["goals_1st_half"] = df_filtered["Home Goal 1T"] + df_filtered["Away Goal 1T"]
+df_filtered["goals_2nd_half"] = df_filtered["goals_total"] - df_filtered["goals_1st_half"]
 
-df["match_result"] = np.select(
+# Esito match
+df_filtered["match_result"] = np.select(
     [
-        df["Home Goal FT"] > df["Away Goal FT"],
-        df["Home Goal FT"] == df["Away Goal FT"],
-        df["Home Goal FT"] < df["Away Goal FT"]
+        df_filtered["Home Goal FT"] > df_filtered["Away Goal FT"],
+        df_filtered["Home Goal FT"] == df_filtered["Away Goal FT"],
+        df_filtered["Home Goal FT"] < df_filtered["Away Goal FT"]
     ],
     ["Home Win", "Draw", "Away Win"],
     default="Unknown"
 )
 
-df["btts"] = np.where(
-    (df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0),
+# BTTS
+df_filtered["btts"] = np.where(
+    (df_filtered["Home Goal FT"] > 0) & (df_filtered["Away Goal FT"] > 0),
     1, 0
 )
 
 # -------------------------------
-# LEAGUE STATS SUMMARY
+# GOAL BANDS (SOLO GOAL SEGNATI)
 # -------------------------------
-group_cols = ["country", "Stagione"]
-
-grouped = df.groupby(group_cols).agg(
-    Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
-    AvgGoals1T=("goals_1st_half", "mean"),
-    AvgGoals2T=("goals_2nd_half", "mean"),
-    AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean"),
-).reset_index()
-
-# MEDIA DELTA
-if not grouped.empty:
-    total_matches = grouped["Matches"].sum()
-    avg_row = grouped.drop(columns=["country", "Stagione", "Matches"]).multiply(grouped["Matches"], axis=0).sum() / total_matches
-    avg_row["Matches"] = total_matches
-    avg_row["country"] = grouped["country"].iloc[0]
-    avg_row["Stagione"] = "DELTA"
-    grouped = pd.concat([grouped, avg_row.to_frame().T], ignore_index=True)
-
-cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
-grouped[cols_pct] = grouped[cols_pct].round(2)
-
-st.subheader("✅ League Stats Summary")
-AgGrid(grouped)
-
-# -------------------------------
-# LEAGUE DATA BY START PRICE
-# -------------------------------
-st.subheader("✅ League Data by Start Price")
-
-def label_match(row):
-    h = row["Odd home"]
-    a = row["Odd Away"]
-
-    if h < 1.5:
-        return "H_StrongFav <1.5"
-    elif 1.5 <= h < 2:
-        return "H_MediumFav 1.5>H<2"
-    elif 2 <= h < 3:
-        return "H_SmallFav 2>H<3"
-    elif h <= 3 and a <= 3:
-        return "SuperCompetitive H-A<3"
-    elif a < 1.5:
-        return "A_StrongFav <1.5"
-    elif 1.5 <= a < 2:
-        return "A_MediumFav 1.5>A<2"
-    elif 2 <= a < 3:
-        return "A_SmallFav 2>A<3"
-    else:
-        return "Others"
-
-df["Label"] = df.apply(label_match, axis=1)
-
-group_label = df.groupby("Label").agg(
-    Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
-    AvgGoals1T=("goals_1st_half", "mean"),
-    AvgGoals2T=("goals_2nd_half", "mean"),
-    AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean"),
-).reset_index()
-
-group_label[cols_pct] = group_label[cols_pct].round(2)
-
-gb = GridOptionsBuilder.from_dataframe(group_label)
-gb.configure_default_column(sortable=True, filter=True, resizable=True)
-grid_options = gb.build()
-
-AgGrid(group_label, gridOptions=grid_options, theme="streamlit", height=350)
-
-# -------------------------------
-# GRAFICO DISTRIBUZIONE GOAL SEGNATI
-# -------------------------------
-st.subheader("Distribuzione gol segnati per fasce tempo (Home+Away)")
-
 goal_cols_home = [
     "home 1 goal segnato (min)",
     "home 2 goal segnato(min)",
@@ -253,15 +148,85 @@ goal_cols_away = [
     "9 goal away (min)"
 ]
 
-goal_minutes = []
-for col in goal_cols_home + goal_cols_away:
-    if col in df.columns:
-        goal_minutes.extend(
-            df[col].dropna().apply(lambda x: classify_goal_minute(x)).values
-        )
+goal_cols = [c for c in goal_cols_home + goal_cols_away if c in df_filtered.columns]
 
-goal_band_counts = pd.Series(goal_minutes).value_counts(normalize=True).sort_index()
-goal_band_perc = (goal_band_counts * 100).to_dict()
+goal_minutes = []
+for col in goal_cols:
+    goal_minutes.extend(
+        df_filtered[col].dropna().apply(
+            lambda x: int(x) if pd.notna(x) and str(x).strip().isdigit() else None
+        ).dropna()
+    )
+
+def classify_goal_minute(minute):
+    if pd.isna(minute):
+        return None
+    minute = int(minute)
+    if minute <= 15:
+        return "0-15"
+    elif minute <= 30:
+        return "16-30"
+    elif minute <= 45:
+        return "31-45"
+    elif minute <= 60:
+        return "46-60"
+    elif minute <= 75:
+        return "60-75"
+    else:
+        return "76-90"
+
+goal_band_counts = pd.Series(
+    [classify_goal_minute(m) for m in goal_minutes]
+).value_counts(normalize=True).sort_index()
+
+goal_band_perc = (goal_band_counts * 100).round(2).to_dict()
+
+# -------------------------------
+# LEAGUE STATS SUMMARY
+# -------------------------------
+group_cols = ["country", "Stagione"]
+
+grouped = df_filtered.groupby(group_cols).agg(
+    Matches=("Home", "count"),
+    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+    AvgGoals1T=("goals_1st_half", "mean"),
+    AvgGoals2T=("goals_2nd_half", "mean"),
+    AvgGoalsTotal=("goals_total", "mean"),
+    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+    BTTS_pct=("btts", "mean")
+).reset_index()
+
+# Media finale per tutte le stagioni
+media_row = grouped.drop(columns=["country", "Stagione"]).mean()
+media_row["country"] = grouped["country"].iloc[0]
+media_row["Stagione"] = "DELTA"
+media_row["Matches"] = grouped["Matches"].sum()
+
+grouped = pd.concat([grouped, pd.DataFrame([media_row])], ignore_index=True)
+
+# Arrotonda a 2 cifre
+cols_to_round = grouped.select_dtypes(include=[np.number]).columns
+grouped[cols_to_round] = grouped[cols_to_round].round(2)
+
+# -------------------------------
+# VISUALIZZAZIONE
+# -------------------------------
+st.subheader("✅ League Stats Summary")
+st.dataframe(grouped, use_container_width=True)
+
+# -------------------------------
+# GRAFICO GOAL BANDS
+# -------------------------------
+st.subheader(f"Distribuzione gol segnati per fasce tempo - {selected_file}")
 
 if goal_band_perc:
     chart_data = pd.DataFrame({
@@ -281,5 +246,4 @@ if goal_band_perc:
     fig.update_layout(yaxis_title="% Goals", xaxis_title="Time Band")
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Nessun dato sui minuti dei gol nel file caricato.")
-
+    st.info("⚠ Nessun dato sui minuti dei gol nel file caricato.")
