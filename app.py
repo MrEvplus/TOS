@@ -255,5 +255,55 @@ group_label = df_filtered.groupby("Label").agg(
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
+# 🔥 NEW - TABELLA HTML MULTI-HEADER
+import pandas as pd
+
+# Definisci le intestazioni multi-riga
+top_header = [
+    "League", 
+    "Match Result", "Match Result", "Match Result",
+    "Average Goals", "Average Goals", "Average Goals",
+    "First Half Overs", "First Half Overs", "First Half Overs",
+    "Full Match Overs", "Full Match Overs", "Full Match Overs",
+    "Goal Bands",
+    "First To Score %", "First To Score %", "First To Score %", "First To Score %"
+]
+
+sub_header = [
+    "Label", 
+    "home", "draw", "away",
+    "1st Half", "2nd Half", "total",
+    "0.5 FH", "1.5 FH", "2.5 FH",
+    "0.5 FT", "1.5 FT", "2.5 FT",
+    "bts",
+    "Home", "H Win", "Away", "A Win"
+]
+
+multi_cols = pd.MultiIndex.from_tuples(zip(top_header, sub_header))
+
+# Colonne da mostrare
+final_cols = [
+    "Label", 
+    "HomeWin_pct", "Draw_pct", "AwayWin_pct",
+    "AvgGoals1T", "AvgGoals2T", "AvgGoalsTotal",
+    "Over0_5_FH_pct", "Over1_5_FH_pct", "Over2_5_FH_pct",
+    "Over0_5_FT_pct", "Over1_5_FT_pct", "Over2_5_FT_pct",
+    "BTTS_pct",
+    "HomeWin_pct", "HomeWin_pct", "AwayWin_pct", "AwayWin_pct"
+]
+
+df_html = group_label[final_cols].copy()
+df_html.columns = multi_cols
+
+html_table = df_html.to_html(
+    escape=False,
+    index=False,
+    border=1,
+    classes='dataframe table table-striped table-bordered'
+)
+
+st.markdown("## ✅ League Data by Start
+
+
 st.dataframe(group_label, use_container_width=True)
 
