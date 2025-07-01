@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 import os
-import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder
+from datetime import datetime
 
 # -------------------------------
 # Costanti
@@ -13,35 +13,40 @@ DATA_FOLDER = "data"
 st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
 
 # -------------------------------
-# Sezione Upload file
+# Upload multipli file
 # -------------------------------
 st.title("Serie A Trading Dashboard")
 
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
 
-uploaded_file = st.file_uploader("Carica uno o più database Excel:", type=["xlsx"], accept_multiple_files=True)
+uploaded_file = st.file_uploader(
+    "Carica uno o più database Excel:",
+    type=["xlsx"],
+    accept_multiple_files=False
+)
 
-if uploaded_file:
-    for up in uploaded_file:
-        save_path = os.path.join(DATA_FOLDER, up.name)
-        with open(save_path, "wb") as f:
-            f.write(up.read())
-    st.success("✅ File caricati e salvati!")
+if uploaded_file is not None:
+    file_path = os.path.join(DATA_FOLDER, uploaded_file.name)
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.read())
+    st.success("✅ File caricato e salvato!")
 
 # -------------------------------
-# Selezione file da lista
+# Elenco file disponibili
 # -------------------------------
 files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
+
 if not files:
-    st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
+    st.warning("⚠ Nessun database presente nella cartella data/. Carica un file Excel per iniziare.")
     st.stop()
 
-selected_file = st.selectbox("📂 Seleziona Campionato (Database):", files)
+selected_file = st.selectbox("Seleziona Campionato (Database):", files)
+
 DATA_PATH = os.path.join(DATA_FOLDER, selected_file)
 
 # -------------------------------
-# Caricamento file Excel
+# Lettura file selezionato
 # -------------------------------
 try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
@@ -65,37 +70,39 @@ except Exception as e:
     st.stop()
 
 # -------------------------------
-# Filtro solo partite già giocate
-# -------------------------------
-oggi = datetime.datetime.now()
-
-if "Data" in df.columns:
-    df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
-    df_filtered = df[df["Data"] <= oggi]
-else:
-    df_filtered = df.copy()
-
-# -------------------------------
 # Preparazione dati
 # -------------------------------
-df_filtered["goals_total"] = df_filtered["Home Goal FT"] + df_filtered["Away Goal FT"]
-df_filtered["goals_1st_half"] = df_filtered["Home Goal 1T"] + df_filtered["Away Goal 1T"]
-df_filtered["goals_2nd_half"] = df_filtered["goals_total"] - df_filtered["goals_1st_half"]
+# Totali goals
+df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
+df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
+df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
 
-df_filtered["match_result"] = np.select(
+# Risultato Match
+df["match_result"] = np.select(
     [
-        df_filtered["Home Goal FT"] > df_filtered["Away Goal FT"],
-        df_filtered["Home Goal FT"] == df_filtered["Away Goal FT"],
-        df_filtered["Home Goal FT"] < df_filtered["Away Goal FT"]
+        df["Home Goal FT"] > df["Away Goal FT"],
+        df["Home Goal FT"] == df["Away Goal FT"],
+        df["Home Goal FT"] < df["Away Goal FT"]
     ],
     ["Home Win", "Draw", "Away Win"],
     default="Unknown"
 )
 
-df_filtered["btts"] = np.where(
-    (df_filtered["Home Goal FT"] > 0) & (df_filtered["Away Goal FT"] > 0),
+# BTTS
+df["btts"] = np.where(
+    (df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0),
     1, 0
 )
+
+# -------------------------------
+# Filtra partite giocate (data)
+# -------------------------------
+if "Data" in df.columns:
+    df["Data"] = pd.to_datetime(df["Data"], errors="coerce", dayfirst=True)
+    today = pd.Timestamp.now().normalize()
+    df_filtered = df[df["Data"] <= today]
+else:
+    df_filtered = df.copy()
 
 # -------------------------------
 # League Stats Summary
@@ -103,7 +110,7 @@ df_filtered["btts"] = np.where(
 group_cols = ["country", "Stagione"]
 
 grouped = df_filtered.groupby(group_cols).agg(
-    Matches=("Home Goal FT", "count"),
+    Matches=("Home", "count"),
     HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
     Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
     AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
@@ -118,59 +125,33 @@ grouped = df_filtered.groupby(group_cols).agg(
     Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
     Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
     Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean")
+    BTTS_pct=("btts", "mean"),
 ).reset_index()
 
-# Media su tutte le stagioni filtrate
-if not grouped.empty:
-    media = grouped.drop(columns=["country", "Stagione"]).mean().to_frame().T
-    media["country"] = grouped["country"].iloc[0]
-    media["Stagione"] = "DELTA"
-    media["Matches"] = grouped["Matches"].sum()
-    grouped = pd.concat([grouped, media], ignore_index=True)
+# Media Totale
+means = grouped.drop(columns=group_cols).mean(numeric_only=True)
+means[group_cols[0]] = grouped[group_cols[0]].iloc[0] if len(grouped) else ""
+means[group_cols[1]] = "DELTA"
+means["Matches"] = grouped["Matches"].sum()
+grouped = pd.concat([grouped, pd.DataFrame([means])], ignore_index=True)
 
+# Decimali
 cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
 grouped[cols_pct] = grouped[cols_pct].round(2)
 
 st.subheader("✅ League Stats Summary")
-gb = GridOptionsBuilder.from_dataframe(grouped)
-gb.configure_default_column(sortable=True, filter=True)
-grid_options = gb.build()
-AgGrid(grouped, gridOptions=grid_options, theme='material', height=350, width='100%')
+st.dataframe(grouped, use_container_width=True)
 
 # -------------------------------
 # Distribuzione gol segnati per fasce tempo
 # -------------------------------
-
-goal_cols_home = ["BW", "BX", "BY", "BZ", "CA", "CB", "CC", "CD", "CE", "CF"]
-goal_cols_away = ["CG", "CH", "CI", "CJ", "CK", "CL", "CM", "CN", "CO", "CP"]
-
-def extract_from_series(series):
-    minuti = []
-    for val in series.dropna():
-        if isinstance(val, (int, float)):
-            minuti.append(int(val))
-        else:
-            split_vals = str(val).split(";")
-            for item in split_vals:
-                item = item.strip()
-                if item.isdigit():
-                    minuti.append(int(item))
-    return minuti
-
-minuti_home = []
-for col in goal_cols_home:
-    if col in df_filtered.columns:
-        minuti_home.extend(extract_from_series(df_filtered[col]))
-
-minuti_away = []
-for col in goal_cols_away:
-    if col in df_filtered.columns:
-        minuti_away.extend(extract_from_series(df_filtered[col]))
-
-all_minutes = minuti_home + minuti_away
-
 def classify_goal_minute(minute):
+    if pd.isna(minute):
+        return None
+    try:
+        minute = int(minute)
+    except:
+        return None
     if minute <= 15:
         return "0-15"
     elif minute <= 30:
@@ -180,23 +161,87 @@ def classify_goal_minute(minute):
     elif minute <= 60:
         return "46-60"
     elif minute <= 75:
-        return "61-75"
+        return "60-75"
     else:
         return "76-90"
 
-if all_minutes:
-    bands = pd.Series([classify_goal_minute(m) for m in all_minutes])
-    band_counts = bands.value_counts(normalize=True).sort_index()
-    band_perc = (band_counts * 100).round(2)
+def split_goal_minutes(val):
+    if pd.isna(val):
+        return []
+    return [
+        int(x.strip())
+        for x in str(val).split(";")
+        if x.strip().isdigit()
+    ]
 
-    band_chart = pd.DataFrame({
-        "Time Band": band_perc.index,
-        "Percentage": band_perc.values
+goal_cols_home = [
+    "minuti goal home",
+    "home 1 goal segnato (min)",
+    "home 2 goal segnato(min)",
+    "home 3 goal segnato(min)",
+    "home 4 goal segnato(min)",
+    "home 5 goal segnato(min)",
+    "home 6 goal segnato(min)",
+    "home 7 goal segnato(min)",
+    "home 8 goal segnato(min)",
+    "home 9 goal segnato(min)",
+]
+
+goal_cols_away = [
+    "minuti goal away",
+    "1 goal away (min)",
+    "2 goal away (min)",
+    "3 goal away (min)",
+    "4 goal away (min)",
+    "5 goal away (min)",
+    "6 goal away (min)",
+    "7 goal away (min)",
+    "8 goal away (min)",
+    "9 goal away (min)",
+]
+
+goal_minutes = []
+
+for col in goal_cols_home:
+    if col in df_filtered.columns:
+        minutes = (
+            df_filtered[col]
+            .dropna()
+            .apply(split_goal_minutes)
+            .explode()
+            .dropna()
+            .astype(int)
+            .apply(classify_goal_minute)
+            .tolist()
+        )
+        goal_minutes.extend(minutes)
+
+for col in goal_cols_away:
+    if col in df_filtered.columns:
+        minutes = (
+            df_filtered[col]
+            .dropna()
+            .apply(split_goal_minutes)
+            .explode()
+            .dropna()
+            .astype(int)
+            .apply(classify_goal_minute)
+            .tolist()
+        )
+        goal_minutes.extend(minutes)
+
+if goal_minutes:
+    goal_band_counts = pd.Series(goal_minutes).value_counts(normalize=True).sort_index()
+    goal_band_perc = (goal_band_counts * 100).round(2).to_dict()
+
+    st.subheader(f"Distribuzione gol segnati per fasce tempo - {selected_file}")
+    chart_data = pd.DataFrame({
+        "Time Band": list(goal_band_perc.keys()),
+        "Percentage": list(goal_band_perc.values())
     })
 
-    st.subheader(f"📊 Distribuzione gol segnati per fasce tempo - {selected_file}")
     fig = px.bar(
-        band_chart,
+        chart_data,
         x="Time Band",
         y="Percentage",
         text="Percentage",
@@ -206,45 +251,42 @@ if all_minutes:
     fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
     fig.update_layout(yaxis_title="% Goals", xaxis_title="Time Band")
     st.plotly_chart(fig, use_container_width=True)
-
 else:
     st.info("⚠ Nessun dato sui minuti dei gol nel file caricato.")
 
 # -------------------------------
 # League Data by Start Price
 # -------------------------------
+st.subheader(f"✅ League Data by Start Price - {selected_file}")
 
-# Etichetta le righe in base alle quote
 def label_match(row):
-    h = row.get("Odd home", np.nan)
-    a = row.get("Odd Away", np.nan)
+    h = row["Odd home"]
+    a = row["Odd Away"]
+    label = ""
 
-    label = "Others"
-    try:
-        if h < 1.5:
-            label = "H_StrongFav <1.5"
-        elif 1.5 <= h < 2:
-            label = "H_MediumFav 1.5-2"
-        elif 2 <= h < 3:
-            label = "H_SmallFav 2-3"
-        elif h <= 3 and a <= 3:
-            label = "SuperCompetitive H-A<3"
-        elif a < 1.5:
-            label = "A_StrongFav <1.5"
-        elif 1.5 <= a < 2:
-            label = "A_MediumFav 1.5-2"
-        elif 2 <= a < 3:
-            label = "A_SmallFav 2-3"
-    except:
-        pass
-
+    if h < 1.5:
+        label = "H_StrongFav <1.5"
+    elif 1.5 <= h < 2:
+        label = "H_MediumFav 1.5-2"
+    elif 2 <= h < 3:
+        label = "H_SmallFav 2-3"
+    elif h <= 3 and a <= 3:
+        label = "SuperCompetitive H-A<3"
+    elif a < 1.5:
+        label = "A_StrongFav <1.5"
+    elif 1.5 <= a < 2:
+        label = "A_MediumFav 1.5-2"
+    elif 2 <= a < 3:
+        label = "A_SmallFav 2-3"
+    else:
+        label = "Others"
     return label
 
 if "Odd home" in df_filtered.columns and "Odd Away" in df_filtered.columns:
     df_filtered["Label"] = df_filtered.apply(label_match, axis=1)
 
     group_label = df_filtered.groupby("Label").agg(
-        Matches=("Home Goal FT", "count"),
+        Matches=("Home", "count"),
         HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
         Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
         AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean()*100),
@@ -264,10 +306,7 @@ if "Odd home" in df_filtered.columns and "Odd Away" in df_filtered.columns:
 
     group_label[cols_pct] = group_label[cols_pct].round(2)
 
-    st.subheader(f"✅ League Data by Start Price - {selected_file}")
-    gb = GridOptionsBuilder.from_dataframe(group_label)
-    gb.configure_default_column(sortable=True, filter=True)
-    grid_options_label = gb.build()
-    AgGrid(group_label, gridOptions=grid_options_label, theme='material', height=350, width='100%')
+    st.dataframe(group_label, use_container_width=True)
 else:
-    st.warning("⚠ Il file non contiene le colonne 'Odd home' e 'Odd Away'.")
+    st.info("⚠ Quote mancanti per generare League Data by Start Price.")
+
