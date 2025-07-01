@@ -154,6 +154,67 @@ cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col
 grouped[cols_pct] = grouped[cols_pct].round(2)
 
 # -------------------------------
+# LEAGUE DATA BY START PRICE
+# -------------------------------
+
+# Funzione per classificare fascia quota
+def label_match(row):
+    try:
+        h = row["Odd home"]
+        a = row["Odd Away"]
+    except KeyError:
+        # se non trova la colonna, mostra colonne disponibili
+        st.write("Colonne disponibili nel file:", df.columns.tolist())
+        return "Unknown"
+
+    if h < 1.5:
+        return "H_StrongFav"
+    elif 1.5 <= h < 2.0:
+        return "H_MediumFav"
+    elif 2.0 <= h < 3.0:
+        return "H_SmallFav"
+    elif h >= 3.0 and a >= 3.0:
+        return "SuperCompetitive"
+    elif 2.0 <= a < 3.0:
+        return "A_SmallFav"
+    elif 1.5 <= a < 2.0:
+        return "A_MediumFav"
+    elif a < 1.5:
+        return "A_StrongFav"
+    else:
+        return "Other"
+
+# Applica classificazione
+if "Odd home" in df.columns and "Odd Away" in df.columns:
+    df["Label"] = df.apply(label_match, axis=1)
+
+    league_data = df.groupby("Label").agg(
+        Matches=("Home", "count"),
+        HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+        Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+        AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+        AvgGoals1T=("goals_1st_half", "mean"),
+        AvgGoals2T=("goals_2nd_half", "mean"),
+        AvgGoalsTotal=("goals_total", "mean"),
+        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+        BTTS_pct=("btts", "mean"),
+    ).reset_index()
+
+    league_data[cols_pct] = league_data[cols_pct].round(2)
+
+    st.subheader("League Data by Start Price")
+    st.dataframe(league_data, use_container_width=True)
+else:
+    st.info("Colonne 'Odd home' o 'Odd Away' mancanti nel database.")
+
+# -------------------------------
 # STREAMLIT VISUALIZATION
 # -------------------------------
 
@@ -193,85 +254,3 @@ if goal_band_perc:
 else:
     st.info("Non ci sono dati sui minuti dei goal nel file caricato.")
 
-# -------------------------------
-# NUOVE SEZIONI → LEAGUE DATA BY START PRICE
-# -------------------------------
-
-st.subheader("League Data by Start Price")
-
-def label_match(row):
-    h = row["Odd home"]
-    a = row["Odd away"]
-
-    if h < 1.5:
-        return "H_StrongFav"
-    elif 1.5 <= h < 2.0:
-        return "H_MediumFav"
-    elif 2.0 <= h < 3.0:
-        return "H_SmallFav"
-    elif h >= 3.0 and a >= 3.0:
-        return "SuperCompetitive"
-    elif 2.0 <= a < 3.0:
-        return "A_SmallFav"
-    elif 1.5 <= a < 2.0:
-        return "A_MediumFav"
-    elif a < 1.5:
-        return "A_StrongFav"
-    else:
-        return "Other"
-
-df["Label"] = df.apply(label_match, axis=1)
-
-group_label = df.groupby("Label").agg(
-    Matches=("Label", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
-    AvgGoals1T=("goals_1st_half", "mean"),
-    AvgGoals2T=("goals_2nd_half", "mean"),
-    AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean"),
-).round(2).reset_index()
-
-st.dataframe(group_label, use_container_width=True)
-
-# -------------------------------
-# HT SCORELINES
-# -------------------------------
-
-st.subheader("HT scorelines that lead to more goals")
-
-df["HT_score"] = df["Home Goal 1T"].astype(str) + "-" + df["Away Goal 1T"].astype(str)
-
-ht_group = df.groupby("HT_score").agg(
-    Matches=("HT_score", "count"),
-    Goal_1plus_pct=("goals_2nd_half", lambda x: (x >= 1).mean() * 100),
-    Goal_2plus_pct=("goals_2nd_half", lambda x: (x >= 2).mean() * 100)
-).round(2).reset_index()
-
-st.dataframe(ht_group, use_container_width=True)
-
-# -------------------------------
-# SHOTS ON TARGET
-# -------------------------------
-
-st.subheader("Shots on Target to Goal Averages (Home)")
-
-shots_group = df.groupby("Tiri in porta squadra HOME (full time)").agg(
-    Matches=("goals_total", "count"),
-    Goal_Avg=("goals_total", "mean")
-).round(2).reset_index()
-
-shots_group = shots_group.rename(columns={
-    "Tiri in porta squadra HOME (full time)": "Shots On Target"
-})
-
-st.dataframe(shots_group, use_container_width=True)
