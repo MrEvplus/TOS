@@ -89,10 +89,10 @@ countries = sorted(df["country"].dropna().unique().tolist())
 country_sel = st.selectbox("🌍 Seleziona Campionato", countries)
 
 # Filtra il dataframe
-df_filtered = df[df["country"] == country_sel]
+df_filtered = df[df["country"] == country_sel].copy()
 
 # -------------------------------
-# CALCOLO GOAL BANDS sul campionato filtrato
+# CALCOLO GOAL BANDS (minuti) sul campionato filtrato
 # -------------------------------
 
 def classify_goal_minute(minute):
@@ -207,32 +207,44 @@ else:
 
 st.subheader(f"League Data by Start Price - {country_sel}")
 
-# Etichetta le righe in base alle quote
 def label_match(row):
     h = row["Odd home"]
     a = row["Odd Away"]
-    label = ""
-
     if h < 1.5:
-        label = "H_StrongFav <1.5"
+        return "H_StrongFav"
     elif 1.5 <= h < 2:
-        label = "H_MediumFav 1.5-2"
+        return "H_MediumFav"
     elif 2 <= h < 3:
-        label = "H_SmallFav 2-3"
+        return "H_SmallFav"
     elif h <= 3 and a <= 3:
-        label = "SuperCompetitive H-A<3"
+        return "SuperCompetative"
     elif a < 1.5:
-        label = "A_StrongFav <1.5"
+        return "A_StrongFav"
     elif 1.5 <= a < 2:
-        label = "A_MediumFav 1.5-2"
+        return "A_MediumFav"
     elif 2 <= a < 3:
-        label = "A_SmallFav 2-3"
+        return "A_SmallFav"
     else:
-        label = "Others"
-
-    return label
+        return "Others"
 
 df_filtered["Label"] = df_filtered.apply(label_match, axis=1)
+
+# First to score calcoli
+df_filtered["First to score home"] = np.where(
+    (df_filtered["Home Goal FT"] > 0) & (
+        (df_filtered["Away Goal FT"] == 0) | 
+        (df_filtered["Home Goal FT"] < df_filtered["Away Goal FT"])
+    ),
+    1, 0
+)
+
+df_filtered["First to score away"] = np.where(
+    (df_filtered["Away Goal FT"] > 0) & (
+        (df_filtered["Home Goal FT"] == 0) |
+        (df_filtered["Away Goal FT"] < df_filtered["Home Goal FT"])
+    ),
+    1, 0
+)
 
 group_label = df_filtered.groupby("Label").agg(
     Matches=("Home", "count"),
@@ -250,22 +262,42 @@ group_label = df_filtered.groupby("Label").agg(
     Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean()*100),
     Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean()*100),
     Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean()*100),
-    BTTS_pct=("btts", "mean")
+    BTTS_pct=("btts", "mean"),
+    FirstToScore_Home_pct=("First to score home", "mean"),
+    FirstToScore_Away_pct=("First to score away", "mean")
 ).reset_index()
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
-# Aggiungo colonne "First To Score" dummy
-group_label["FirstToScore_Home"] = 0
-group_label["FirstToScore_HWin"] = 0
-group_label["FirstToScore_Away"] = 0
-group_label["FirstToScore_AWin"] = 0
+# CSS Custom
+st.markdown("""
+    <style>
+        table.dataframe th {
+            background-color: #2e7d32;
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #4caf50;
+        }
+        table.dataframe tr:nth-child(even) {
+            background-color: #e8f5e9;
+        }
+        table.dataframe tr:nth-child(odd) {
+            background-color: #c8e6c9;
+        }
+        table.dataframe {
+            font-size: 14px;
+            border-collapse: collapse;
+        }
+        table.dataframe td {
+            border: 1px solid #4caf50;
+            text-align: right;
+            padding: 4px;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# -------------------------------
-# CREAZIONE TABELLA MULTI-HEADER HTML
-# -------------------------------
-
-# Costruisci intestazioni multi-riga
+# Multiindex Table
 top_header = [
     "League", 
     "Match Result", "Match Result", "Match Result",
@@ -273,7 +305,7 @@ top_header = [
     "First Half Overs", "First Half Overs", "First Half Overs",
     "Full Match Overs", "Full Match Overs", "Full Match Overs",
     "Goal Bands",
-    "First To Score %", "First To Score %", "First To Score %", "First To Score %"
+    "First To Score %", "First To Score %"
 ]
 
 sub_header = [
@@ -283,12 +315,11 @@ sub_header = [
     "0.5 FH", "1.5 FH", "2.5 FH",
     "0.5 FT", "1.5 FT", "2.5 FT",
     "bts",
-    "Home", "H Win", "Away", "A Win"
+    "Home", "Away"
 ]
 
 multi_cols = pd.MultiIndex.from_tuples(zip(top_header, sub_header))
 
-# Colonne da mostrare
 final_cols = [
     "Label", 
     "HomeWin_pct", "Draw_pct", "AwayWin_pct",
@@ -296,7 +327,7 @@ final_cols = [
     "Over0_5_FH_pct", "Over1_5_FH_pct", "Over2_5_FH_pct",
     "Over0_5_FT_pct", "Over1_5_FT_pct", "Over2_5_FT_pct",
     "BTTS_pct",
-    "FirstToScore_Home", "FirstToScore_HWin", "FirstToScore_Away", "FirstToScore_AWin"
+    "FirstToScore_Home_pct", "FirstToScore_Away_pct"
 ]
 
 df_html = group_label[final_cols].copy()
@@ -311,4 +342,3 @@ html_table = df_html.to_html(
 
 st.markdown("## ✅ League Data by Start Price (Versione HTML - stile Screenshot)")
 st.markdown(html_table, unsafe_allow_html=True)
-
