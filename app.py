@@ -218,19 +218,19 @@ def label_match(row):
     label = ""
 
     if h < 1.5:
-        label = "H_StrongFav"
+        label = "H_StrongFav <1.5"
     elif 1.5 <= h < 2:
-        label = "H_MediumFav"
+        label = "H_MediumFav 1.5>H<2"
     elif 2 <= h < 3:
-        label = "H_SmallFav"
+        label = "H_SmallFav 2>H<3"
     elif h <= 3 and a <= 3:
-        label = "SuperCompetitive"
+        label = "SuperCompetitive H-A<3"
     elif a < 1.5:
-        label = "A_StrongFav"
+        label = "A_StrongFav <1.5"
     elif 1.5 <= a < 2:
-        label = "A_MediumFav"
+        label = "A_MediumFav 1.5>A<2"
     elif 2 <= a < 3:
-        label = "A_SmallFav"
+        label = "A_SmallFav 2>A<3"
     else:
         label = "Others"
 
