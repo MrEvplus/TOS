@@ -210,94 +210,136 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione gol segnati per fasce tempo per LABEL
+# Distribuzione gol segnati / subiti per fasce tempo per LABEL
 # -------------------------------
 
-st.subheader(f"Distribuzione gol segnati per fasce tempo - {db_selected}")
+st.subheader(f"Distribuzione gol segnati e subiti per fasce tempo - {db_selected}")
 
-# Colonne concatenate (es. BW, CG)
-concat_cols_home = [
-    col for col in df.columns if col.lower().strip() == "minuti goal segnato home"
-]
-concat_cols_away = [
-    col for col in df.columns if col.lower().strip() == "minuti goal segnato away"
-]
-
-# Colonne singole
-cols_home_single = [col for col in df.columns if col.lower().startswith("home ") and "goal" in col.lower()]
-cols_away_single = [col for col in df.columns if col.lower().startswith("away ") and "goal" in col.lower()]
-
-goal_minutes_by_label = {}
-
-def parse_minutes(value):
+# Funzione utility per estrarre minuti da stringa tipo "28;54;76"
+def extract_minutes(series):
     """
-    Trasforma cella in lista di minuti es:
-    "28;54;57;60" -> [28,54,57,60]
+    Prende una colonna di minuti goal (stringa es. "23;45") e
+    restituisce una lista di tutti i minuti come interi.
     """
-    if pd.isna(value) or str(value).strip() == "":
-        return []
-    parts = str(value).replace(",", ";").split(";")
-    return [int(float(p.strip())) for p in parts if p.strip().isdigit()]
+    all_minutes = []
+    for val in series.dropna():
+        if isinstance(val, str):
+            for part in val.replace(",", ";").split(";"):
+                part = part.strip()
+                if part.isdigit():
+                    all_minutes.append(int(part))
+    return all_minutes
 
-for label in df["Label"].unique():
+# Fasce tempo
+time_bands = {
+    "0-15": (0,15),
+    "16-30": (16,30),
+    "31-45": (31,45),
+    "46-60": (46,60),
+    "61-75": (61,75),
+    "76-90": (76,120),  # includiamo eventuali extra time
+}
+
+# Dizionario risultati per ciascuna Label
+final_results = {}
+
+# Loop per ogni Label
+for label in df["Label"].dropna().unique():
     sub_df = df[df["Label"] == label]
 
-    # Minuti goal home
-    minutes_home = []
-    for col in concat_cols_home:
-        if col in sub_df.columns:
-            series = sub_df[col].dropna().apply(parse_minutes)
-            flat = [m for lst in series for m in lst]
-            minutes_home.extend(flat)
+    # Estrai minuti goal Home
+    minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+    # Estrai minuti goal Away
+    minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
 
-    for col in cols_home_single:
-        if col in sub_df.columns:
-            values = sub_df[col].dropna().apply(lambda x: int(float(x)) if str(x).strip().isdigit() else None)
-            minutes_home.extend(values.dropna().tolist())
+    # Stabilisci chi è la squadra di riferimento per la Label
+    if label.startswith("H_"):
+        # squadre Home
+        minutes_scored = minutes_home
+        minutes_conceded = minutes_away
+    elif label.startswith("A_"):
+        # squadre Away
+        minutes_scored = minutes_away
+        minutes_conceded = minutes_home
+    else:
+        # SuperCompetitive → somma tutto
+        minutes_scored = minutes_home + minutes_away
+        minutes_conceded = []  # nulla da considerare come "subito" perché è bilanciato
 
-    # Minuti goal away
-    minutes_away = []
-    for col in concat_cols_away:
-        if col in sub_df.columns:
-            series = sub_df[col].dropna().apply(parse_minutes)
-            flat = [m for lst in series for m in lst]
-            minutes_away.extend(flat)
+    # Conta i goal nelle fasce
+    scored_counts = {band: 0 for band in time_bands}
+    conceded_counts = {band: 0 for band in time_bands}
 
-    for col in cols_away_single:
-        if col in sub_df.columns:
-            values = sub_df[col].dropna().apply(lambda x: int(float(x)) if str(x).strip().isdigit() else None)
-            minutes_away.extend(values.dropna().tolist())
+    for m in minutes_scored:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                scored_counts[band] += 1
+                break
 
-    # Somma tutto
-    minutes_all = minutes_home + minutes_away
+    for m in minutes_conceded:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                conceded_counts[band] += 1
+                break
 
-    if minutes_all:
-        # Classifica nelle fasce
-        bands = pd.Series(minutes_all).apply(
-            lambda x: (
-                "0-15" if x <= 15 else
-                "16-30" if x <= 30 else
-                "31-45" if x <= 45 else
-                "46-60" if x <= 60 else
-                "60-75" if x <= 75 else
-                "76-90"
+    total_scored = sum(scored_counts.values())
+    total_conceded = sum(conceded_counts.values())
+
+    # Calcola percentuali
+    scored_perc = {band: (val/total_scored*100 if total_scored>0 else 0) for band,val in scored_counts.items()}
+    conceded_perc = {band: (val/total_conceded*100 if total_conceded>0 else 0) for band,val in conceded_counts.items()}
+
+    # Salva i dati
+    final_results[label] = {
+        "scored_counts": scored_counts,
+        "conceded_counts": conceded_counts,
+        "scored_perc": scored_perc,
+        "conceded_perc": conceded_perc,
+        "total_scored": total_scored,
+        "total_conceded": total_conceded
+    }
+
+# Visualizza tabella e grafico per ciascuna label
+if final_results:
+    for label, data in final_results.items():
+        st.markdown(f"### **Label: {label}**")
+
+        # Costruisci DataFrame per tabella
+        df_band = pd.DataFrame({
+            "Time Band": list(time_bands.keys()),
+            "Goals Scored": [data["scored_counts"][band] for band in time_bands],
+            "% Scored": [round(data["scored_perc"][band],2) for band in time_bands],
+            "Goals Conceded": [data["conceded_counts"][band] for band in time_bands],
+            "% Conceded": [round(data["conceded_perc"][band],2) for band in time_bands],
+        })
+
+        # Aggiungi total row
+        df_band.loc["Total"] = [
+            "Total",
+            data["total_scored"],
+            100.0 if data["total_scored"]>0 else 0,
+            data["total_conceded"],
+            100.0 if data["total_conceded"]>0 else 0
+        ]
+
+        # Visualizza tabella
+        st.dataframe(df_band, use_container_width=True)
+
+        # Grafico stacked bar chart
+        if data["total_scored"] > 0 or data["total_conceded"] > 0:
+            fig = px.bar(
+                df_band.iloc[:-1],  # escludi riga Total
+                x="Time Band",
+                y=["Goals Scored", "Goals Conceded"],
+                title=f"Distribuzione gol segnati e subiti - {label}",
+                labels={"value":"Numero Goal", "variable":"Tipo"},
+                color_discrete_map={
+                    "Goals Scored":"green",
+                    "Goals Conceded":"red"
+                },
+                barmode="stack",
+                text_auto=True
             )
-        )
-        dist = bands.value_counts(normalize=True).sort_index() * 100
-        goal_minutes_by_label[label] = dist
-
-# Visualizza grafici
-if goal_minutes_by_label:
-    for label, dist in goal_minutes_by_label.items():
-        st.write(f"### Label: {label}")
-        fig = px.bar(
-            x=dist.index,
-            y=dist.values,
-            labels={"x": "Time Band", "y": "% Goals"},
-            title=f"Distribuzione gol segnati per fasce tempo - {label}"
-        )
-        fig.update_traces(texttemplate='%{y:.2f}%', textposition='outside')
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("⚠ Nessun dato sui minuti dei gol nel file caricato.")
-
+    st.info("⚠ Nessun dato sui minuti dei goal nel file caricato.")
