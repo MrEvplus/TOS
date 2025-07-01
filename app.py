@@ -36,7 +36,7 @@ if os.path.exists(DATA_PATH):
         df = pd.read_excel(DATA_PATH, sheet_name=None)
         df = list(df.values())[0]
 
-        # ✅ PULIZIA NOMI COLONNE
+        # ✅ Pulizia nomi colonne
         df.columns = (
             df.columns
             .astype(str)
@@ -46,7 +46,7 @@ if os.path.exists(DATA_PATH):
         )
 
         st.success("✅ Database caricato automaticamente!")
-        st.write("✅ Colonne presenti nel database:")
+        st.write("Colonne presenti nel database:")
         st.write(df.columns.tolist())
 
     except Exception as e:
@@ -57,7 +57,7 @@ else:
     st.stop()
 
 # -------------------------------
-# PREPARAZIONE DATI
+# Preparazione dati base
 # -------------------------------
 
 # Calcola gol totali e per tempi
@@ -127,9 +127,7 @@ goal_cols_away = [
     "9 goal away (min)"
 ]
 
-# Unisci tutti i minuti
 goal_minutes = []
-
 for col in goal_cols_home + goal_cols_away:
     if col in df.columns:
         goal_minutes.extend(
@@ -140,7 +138,7 @@ goal_band_counts = pd.Series(goal_minutes).value_counts(normalize=True).sort_ind
 goal_band_perc = (goal_band_counts * 100).to_dict()
 
 # -------------------------------
-# RAGGRUPPA STATISTICHE PER LEAGUE
+# RAGGRUPPA League Stats Summary
 # -------------------------------
 
 group_cols = ["country", "Stagione"]
@@ -168,7 +166,7 @@ cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col
 grouped[cols_pct] = grouped[cols_pct].round(2)
 
 # -------------------------------
-# STREAMLIT VISUALIZATION
+# Visualizza League Stats Summary
 # -------------------------------
 
 countries = sorted(df["country"].dropna().unique().tolist())
@@ -182,7 +180,7 @@ st.subheader("League Stats Summary")
 st.dataframe(filtered_grouped, use_container_width=True)
 
 # -------------------------------
-# GRAFICO GOAL BANDS
+# Visualizza GRAFICO GOAL BANDS
 # -------------------------------
 
 st.subheader("Distribuzione gol per fasce tempo (tutti campionati)")
@@ -206,3 +204,60 @@ if goal_band_perc:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Non ci sono dati sui minuti dei goal nel file caricato.")
+
+# -------------------------------
+# League Data by Start Price
+# -------------------------------
+
+st.subheader("League Data by Start Price")
+
+# Etichetta le righe in base alle quote
+def label_match(row):
+    h = row["Odd home"]
+    a = row["Odd Away"]
+    label = ""
+
+    if h < 1.5:
+        label = "H_StrongFav"
+    elif 1.5 <= h < 2:
+        label = "H_MediumFav"
+    elif 2 <= h < 3:
+        label = "H_SmallFav"
+    elif h >= 3 and a >= 3:
+        label = "SuperCompetitive"
+    elif a < 1.5:
+        label = "A_StrongFav"
+    elif 1.5 <= a < 2:
+        label = "A_MediumFav"
+    elif 2 <= a < 3:
+        label = "A_SmallFav"
+    else:
+        label = "Others"
+
+    return label
+
+df["Label"] = df.apply(label_match, axis=1)
+
+# Calcola statistiche
+group_label = df.groupby("Label").agg(
+    Matches=("Home", "count"),
+    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
+    Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
+    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean()*100),
+    AvgGoals1T=("goals_1st_half", "mean"),
+    AvgGoals2T=("goals_2nd_half", "mean"),
+    AvgGoalsTotal=("goals_total", "mean"),
+    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean()*100),
+    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean()*100),
+    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean()*100),
+    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean()*100),
+    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean()*100),
+    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean()*100),
+    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean()*100),
+    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean()*100),
+    BTTS_pct=("btts", "mean")
+).reset_index()
+
+group_label[cols_pct] = group_label[cols_pct].round(2)
+
+st.dataframe(group_label, use_container_width=True)
