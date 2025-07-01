@@ -1,52 +1,47 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
 import os
-from datetime import datetime
+import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder
 
 # -------------------------------
-# COSTANTI
+# Costanti
 # -------------------------------
 DATA_FOLDER = "data"
 
 st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
 
+# -------------------------------
+# Sezione Upload file
+# -------------------------------
 st.title("Serie A Trading Dashboard")
 
-# -------------------------------
-# CREAZIONE FOLDER
-# -------------------------------
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
 
-# -------------------------------
-# UPLOAD FILE
-# -------------------------------
-uploaded_file = st.file_uploader("Carica un nuovo database Excel:", type=["xlsx"])
+uploaded_file = st.file_uploader("Carica uno o più database Excel:", type=["xlsx"], accept_multiple_files=True)
 
-if uploaded_file is not None:
-    file_path = os.path.join(DATA_FOLDER, uploaded_file.name)
-    with open(file_path, "wb") as f:
-        f.write(uploaded_file.read())
-    st.success(f"✅ Database {uploaded_file.name} caricato e salvato con successo!")
+if uploaded_file:
+    for up in uploaded_file:
+        save_path = os.path.join(DATA_FOLDER, up.name)
+        with open(save_path, "wb") as f:
+            f.write(up.read())
+    st.success("✅ File caricati e salvati!")
 
 # -------------------------------
-# SELEZIONE FILE
+# Selezione file da lista
 # -------------------------------
-files_available = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
-
-if not files_available:
-    st.warning("⚠️ Nessun database presente nella cartella data/. Carica un file Excel per iniziare.")
+files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
+if not files:
+    st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
     st.stop()
 
-selected_file = st.selectbox("📁 Seleziona il database Excel", files_available)
-
+selected_file = st.selectbox("📂 Seleziona Campionato (Database):", files)
 DATA_PATH = os.path.join(DATA_FOLDER, selected_file)
 
 # -------------------------------
-# LETTURA EXCEL
+# Caricamento file Excel
 # -------------------------------
 try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
@@ -61,46 +56,32 @@ try:
         .str.replace(r"\s+", " ", regex=True)
     )
 
-    st.success(f"✅ Database caricato automaticamente: {selected_file}")
+    st.success("✅ Database caricato automaticamente!")
+    st.write("Colonne presenti nel database:")
+    st.write(df.columns.tolist())
 
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
     st.stop()
 
 # -------------------------------
-# FILTRI STAGIONI IN CORSO
+# Filtro solo partite già giocate
 # -------------------------------
-oggi = datetime.now()
+oggi = datetime.datetime.now()
 
-# Conversione colonna Data
 if "Data" in df.columns:
-    df["Data"] = pd.to_datetime(df["Data"], errors='coerce', format="%d/%m/%Y")
+    df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
+    df_filtered = df[df["Data"] <= oggi]
 else:
-    df["Data"] = pd.NaT
-
-df_filtered = df.copy()
-
-# Solo partite già giocate nella stagione in corso
-if "Stagione" in df.columns:
-    stagioni = df["Stagione"].unique()
-    for stagione in stagioni:
-        mask_stagione = df_filtered["Stagione"] == stagione
-        max_data_stagione = df_filtered.loc[mask_stagione, "Data"].max()
-
-        # Se la stagione è quella in corso (anno più alto) e ci sono partite future, filtra
-        if max_data_stagione is not pd.NaT and max_data_stagione > oggi:
-            df_filtered = df_filtered[~((df_filtered["Stagione"] == stagione) & (df_filtered["Data"] > oggi))]
+    df_filtered = df.copy()
 
 # -------------------------------
-# CALCOLI BASE
+# Preparazione dati
 # -------------------------------
-
-# Gol totali e per tempi
 df_filtered["goals_total"] = df_filtered["Home Goal FT"] + df_filtered["Away Goal FT"]
 df_filtered["goals_1st_half"] = df_filtered["Home Goal 1T"] + df_filtered["Away Goal 1T"]
 df_filtered["goals_2nd_half"] = df_filtered["goals_total"] - df_filtered["goals_1st_half"]
 
-# Esito match
 df_filtered["match_result"] = np.select(
     [
         df_filtered["Home Goal FT"] > df_filtered["Away Goal FT"],
@@ -111,19 +92,18 @@ df_filtered["match_result"] = np.select(
     default="Unknown"
 )
 
-# BTTS
 df_filtered["btts"] = np.where(
     (df_filtered["Home Goal FT"] > 0) & (df_filtered["Away Goal FT"] > 0),
     1, 0
 )
 
 # -------------------------------
-# LEAGUE STATS SUMMARY
+# League Stats Summary
 # -------------------------------
 group_cols = ["country", "Stagione"]
 
 grouped = df_filtered.groupby(group_cols).agg(
-    Matches=("Home", "count"),
+    Matches=("Home Goal FT", "count"),
     HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
     Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
     AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
@@ -141,53 +121,82 @@ grouped = df_filtered.groupby(group_cols).agg(
     BTTS_pct=("btts", "mean")
 ).reset_index()
 
-# Aggiungi riga media
-media_row = grouped.select_dtypes(include=[np.number]).mean(numeric_only=True)
-media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "MEDIA"
-media_row["Stagione"] = "DELTA"
-media_row["Matches"] = grouped["Matches"].sum()
+# Media su tutte le stagioni filtrate
+if not grouped.empty:
+    media = grouped.drop(columns=["country", "Stagione"]).mean().to_frame().T
+    media["country"] = grouped["country"].iloc[0]
+    media["Stagione"] = "DELTA"
+    media["Matches"] = grouped["Matches"].sum()
+    grouped = pd.concat([grouped, media], ignore_index=True)
 
-grouped = pd.concat([grouped, pd.DataFrame([media_row])], ignore_index=True)
-
-# Arrotonda a 2 decimali
-cols_pct = [col for col in grouped.columns if grouped[col].dtype in [float, np.float64]]
+cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
 grouped[cols_pct] = grouped[cols_pct].round(2)
 
 st.subheader("✅ League Stats Summary")
 gb = GridOptionsBuilder.from_dataframe(grouped)
-gb.configure_default_column(editable=False, groupable=True, filter=True, sortable=True, resizable=True)
-gridOptions = gb.build()
-
-AgGrid(grouped, gridOptions=gridOptions, theme='alpine')
+gb.configure_default_column(sortable=True, filter=True)
+grid_options = gb.build()
+AgGrid(grouped, gridOptions=grid_options, theme='material', height=350, width='100%')
 
 # -------------------------------
-# GOAL BANDS DISTRIBUTION
+# Distribuzione gol segnati per fasce tempo
 # -------------------------------
 
-goal_cols_home = ["minuti goal segnato home"]
-goal_cols_away = ["minuti goal segnato away"]
+goal_cols_home = ["BW", "BX", "BY", "BZ", "CA", "CB", "CC", "CD", "CE", "CF"]
+goal_cols_away = ["CG", "CH", "CI", "CJ", "CK", "CL", "CM", "CN", "CO", "CP"]
 
-goal_minutes = []
+def extract_from_series(series):
+    minuti = []
+    for val in series.dropna():
+        if isinstance(val, (int, float)):
+            minuti.append(int(val))
+        else:
+            split_vals = str(val).split(";")
+            for item in split_vals:
+                item = item.strip()
+                if item.isdigit():
+                    minuti.append(int(item))
+    return minuti
 
-for col in goal_cols_home + goal_cols_away:
+minuti_home = []
+for col in goal_cols_home:
     if col in df_filtered.columns:
-        goal_minutes.extend(
-            df_filtered[col].dropna().apply(lambda x: classify_goal_minute(x)).values
-        )
+        minuti_home.extend(extract_from_series(df_filtered[col]))
 
-goal_band_counts = pd.Series(goal_minutes).value_counts(normalize=True).sort_index()
-goal_band_perc = (goal_band_counts * 100).round(2).to_dict()
+minuti_away = []
+for col in goal_cols_away:
+    if col in df_filtered.columns:
+        minuti_away.extend(extract_from_series(df_filtered[col]))
 
-st.subheader(f"Distribuzione gol segnati per fasce tempo - {selected_file}")
+all_minutes = minuti_home + minuti_away
 
-if goal_band_perc:
-    chart_data = pd.DataFrame({
-        "Time Band": list(goal_band_perc.keys()),
-        "Percentage": list(goal_band_perc.values())
+def classify_goal_minute(minute):
+    if minute <= 15:
+        return "0-15"
+    elif minute <= 30:
+        return "16-30"
+    elif minute <= 45:
+        return "31-45"
+    elif minute <= 60:
+        return "46-60"
+    elif minute <= 75:
+        return "61-75"
+    else:
+        return "76-90"
+
+if all_minutes:
+    bands = pd.Series([classify_goal_minute(m) for m in all_minutes])
+    band_counts = bands.value_counts(normalize=True).sort_index()
+    band_perc = (band_counts * 100).round(2)
+
+    band_chart = pd.DataFrame({
+        "Time Band": band_perc.index,
+        "Percentage": band_perc.values
     })
 
+    st.subheader(f"📊 Distribuzione gol segnati per fasce tempo - {selected_file}")
     fig = px.bar(
-        chart_data,
+        band_chart,
         x="Time Band",
         y="Percentage",
         text="Percentage",
@@ -197,44 +206,45 @@ if goal_band_perc:
     fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
     fig.update_layout(yaxis_title="% Goals", xaxis_title="Time Band")
     st.plotly_chart(fig, use_container_width=True)
+
 else:
     st.info("⚠ Nessun dato sui minuti dei gol nel file caricato.")
 
 # -------------------------------
-# LEAGUE DATA BY START PRICE
+# League Data by Start Price
 # -------------------------------
+
+# Etichetta le righe in base alle quote
 def label_match(row):
+    h = row.get("Odd home", np.nan)
+    a = row.get("Odd Away", np.nan)
+
+    label = "Others"
     try:
-        h = row["Odd home"]
-        a = row["Odd Away"]
-
-        if pd.isna(h) or pd.isna(a):
-            return "Others"
-
         if h < 1.5:
-            return "H_StrongFav"
+            label = "H_StrongFav <1.5"
         elif 1.5 <= h < 2:
-            return "H_MediumFav"
+            label = "H_MediumFav 1.5-2"
         elif 2 <= h < 3:
-            return "H_SmallFav"
+            label = "H_SmallFav 2-3"
         elif h <= 3 and a <= 3:
-            return "SuperCompetitive H-A<3"
+            label = "SuperCompetitive H-A<3"
         elif a < 1.5:
-            return "A_StrongFav"
+            label = "A_StrongFav <1.5"
         elif 1.5 <= a < 2:
-            return "A_MediumFav"
+            label = "A_MediumFav 1.5-2"
         elif 2 <= a < 3:
-            return "A_SmallFav"
-        else:
-            return "Others"
+            label = "A_SmallFav 2-3"
     except:
-        return "Others"
+        pass
+
+    return label
 
 if "Odd home" in df_filtered.columns and "Odd Away" in df_filtered.columns:
     df_filtered["Label"] = df_filtered.apply(label_match, axis=1)
 
     group_label = df_filtered.groupby("Label").agg(
-        Matches=("Home", "count"),
+        Matches=("Home Goal FT", "count"),
         HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
         Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
         AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean()*100),
@@ -252,37 +262,12 @@ if "Odd home" in df_filtered.columns and "Odd Away" in df_filtered.columns:
         BTTS_pct=("btts", "mean")
     ).reset_index()
 
-    group_label[[
-        col for col in group_label.columns if group_label[col].dtype in [float, np.float64]
-    ]] = group_label[[
-        col for col in group_label.columns if group_label[col].dtype in [float, np.float64]
-    ]].round(2)
+    group_label[cols_pct] = group_label[cols_pct].round(2)
 
     st.subheader(f"✅ League Data by Start Price - {selected_file}")
-    gb2 = GridOptionsBuilder.from_dataframe(group_label)
-    gb2.configure_default_column(editable=False, groupable=True, filter=True, sortable=True, resizable=True)
-    gridOptions2 = gb2.build()
-
-    AgGrid(group_label, gridOptions=gridOptions2, theme='alpine')
+    gb = GridOptionsBuilder.from_dataframe(group_label)
+    gb.configure_default_column(sortable=True, filter=True)
+    grid_options_label = gb.build()
+    AgGrid(group_label, gridOptions=grid_options_label, theme='material', height=350, width='100%')
 else:
-    st.info("⚠️ Non ci sono colonne Odd home o Odd Away nel file caricato. League Data by Start Price non calcolabile.")
-
-# -------------------------------
-# FUNZIONE PER GOAL BANDS
-# -------------------------------
-def classify_goal_minute(minute):
-    if pd.isna(minute):
-        return None
-    minute = int(minute)
-    if minute <= 15:
-        return "0-15"
-    elif minute <= 30:
-        return "16-30"
-    elif minute <= 45:
-        return "31-45"
-    elif minute <= 60:
-        return "46-60"
-    elif minute <= 75:
-        return "60-75"
-    else:
-        return "76-90"
+    st.warning("⚠ Il file non contiene le colonne 'Odd home' e 'Odd Away'.")
