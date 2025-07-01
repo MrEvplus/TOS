@@ -35,7 +35,20 @@ if os.path.exists(DATA_PATH):
     try:
         df = pd.read_excel(DATA_PATH, sheet_name=None)
         df = list(df.values())[0]
+
+        # ✅ PULIZIA NOMI COLONNE
+        df.columns = (
+            df.columns
+            .astype(str)
+            .str.strip()
+            .str.replace(r"[\n\r\t]", "", regex=True)
+            .str.replace(r"\s+", " ", regex=True)
+        )
+
         st.success("✅ Database caricato automaticamente!")
+        st.write("✅ Colonne presenti nel database:")
+        st.write(df.columns.tolist())
+
     except Exception as e:
         st.error(f"Errore nel caricamento file: {e}")
         st.stop()
@@ -44,27 +57,15 @@ else:
     st.stop()
 
 # -------------------------------
-# DEBUG: Mostra le colonne del DataFrame
-# -------------------------------
-st.write("✅ Colonne presenti nel database:", df.columns.tolist())
-
-# -------------------------------
 # PREPARAZIONE DATI
 # -------------------------------
 
-# Verifica esistenza colonne
-required_cols = ["Home Goal FT", "Away Goal FT"]
-missing_cols = [col for col in required_cols if col not in df.columns]
+# Calcola gol totali e per tempi
+df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
+df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
+df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
 
-if missing_cols:
-    st.error(f"⚠ Colonne mancanti nel file Excel: {missing_cols}. Correggi il file Excel!")
-    st.stop()
-
-# Sostituisci eventuali NaN
-df["Home Goal FT"] = df["Home Goal FT"].fillna(0)
-df["Away Goal FT"] = df["Away Goal FT"].fillna(0)
-
-# Calcola esito match
+# Esito match
 df["match_result"] = np.select(
     [
         df["Home Goal FT"] > df["Away Goal FT"],
@@ -74,11 +75,6 @@ df["match_result"] = np.select(
     ["Home Win", "Draw", "Away Win"],
     default="Unknown"
 )
-
-# Calcola gol totali e per tempi
-df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
-df["goals_1st_half"] = df["Home Goal 1T"].fillna(0) + df["Away Goal 1T"].fillna(0)
-df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
 
 # BTTS
 df["btts"] = np.where(
@@ -120,17 +116,18 @@ goal_cols_home = [
 ]
 
 goal_cols_away = [
-    "1  goal away (min)",
-    "2  goal away (min)",
+    "1 goal away (min)",
+    "2 goal away (min)",
     "3 goal away (min)",
-    "4  goal away (min)",
-    "5  goal away (min)",
-    "6  goal away (min)",
-    "7  goal away (min)",
-    "8  goal away (min)",
-    "9  goal away (min)"
+    "4 goal away (min)",
+    "5 goal away (min)",
+    "6 goal away (min)",
+    "7 goal away (min)",
+    "8 goal away (min)",
+    "9 goal away (min)"
 ]
 
+# Unisci tutti i minuti
 goal_minutes = []
 
 for col in goal_cols_home + goal_cols_away:
@@ -209,4 +206,3 @@ if goal_band_perc:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Non ci sono dati sui minuti dei goal nel file caricato.")
-
