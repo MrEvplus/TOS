@@ -215,37 +215,65 @@ AgGrid(
 
 st.subheader(f"Distribuzione gol segnati per fasce tempo - {db_selected}")
 
-# Leggi colonne minuti goal
-goal_cols_home = [col for col in df.columns if "goal home" in col.lower()]
-goal_cols_away = [col for col in df.columns if "goal awa" in col.lower()]
+# Colonne concatenate (es. BW, CG)
+concat_cols_home = [
+    col for col in df.columns if col.lower().strip() == "minuti goal segnato home"
+]
+concat_cols_away = [
+    col for col in df.columns if col.lower().strip() == "minuti goal segnato away"
+]
+
+# Colonne singole
+cols_home_single = [col for col in df.columns if col.lower().startswith("home ") and "goal" in col.lower()]
+cols_away_single = [col for col in df.columns if col.lower().startswith("away ") and "goal" in col.lower()]
 
 goal_minutes_by_label = {}
 
-def extract_minutes(cell):
-    if pd.isna(cell):
+def parse_minutes(value):
+    """
+    Trasforma cella in lista di minuti es:
+    "28;54;57;60" -> [28,54,57,60]
+    """
+    if pd.isna(value) or str(value).strip() == "":
         return []
-    cell = str(cell).strip()
-    if not cell:
-        return []
-    # Separatore ; o spazio
-    for sep in [';', ',']:
-        if sep in cell:
-            return [int(float(x.strip())) for x in cell.split(sep) if x.strip().isdigit()]
-    return [int(float(cell))] if cell.isdigit() else []
+    parts = str(value).replace(",", ";").split(";")
+    return [int(float(p.strip())) for p in parts if p.strip().isdigit()]
 
-# Calcolo distribuzione goal per Label
 for label in df["Label"].unique():
     sub_df = df[df["Label"] == label]
-    goal_minutes = []
-    for col in goal_cols_home + goal_cols_away:
-        if col in sub_df.columns:
-            sub_df[col] = sub_df[col].astype(str)
-            for val in sub_df[col]:
-                goal_minutes.extend(extract_minutes(val))
 
-    # Classifica in fasce
-    if goal_minutes:
-        bands = pd.Series(goal_minutes).apply(
+    # Minuti goal home
+    minutes_home = []
+    for col in concat_cols_home:
+        if col in sub_df.columns:
+            series = sub_df[col].dropna().apply(parse_minutes)
+            flat = [m for lst in series for m in lst]
+            minutes_home.extend(flat)
+
+    for col in cols_home_single:
+        if col in sub_df.columns:
+            values = sub_df[col].dropna().apply(lambda x: int(float(x)) if str(x).strip().isdigit() else None)
+            minutes_home.extend(values.dropna().tolist())
+
+    # Minuti goal away
+    minutes_away = []
+    for col in concat_cols_away:
+        if col in sub_df.columns:
+            series = sub_df[col].dropna().apply(parse_minutes)
+            flat = [m for lst in series for m in lst]
+            minutes_away.extend(flat)
+
+    for col in cols_away_single:
+        if col in sub_df.columns:
+            values = sub_df[col].dropna().apply(lambda x: int(float(x)) if str(x).strip().isdigit() else None)
+            minutes_away.extend(values.dropna().tolist())
+
+    # Somma tutto
+    minutes_all = minutes_home + minutes_away
+
+    if minutes_all:
+        # Classifica nelle fasce
+        bands = pd.Series(minutes_all).apply(
             lambda x: (
                 "0-15" if x <= 15 else
                 "16-30" if x <= 30 else
@@ -258,6 +286,7 @@ for label in df["Label"].unique():
         dist = bands.value_counts(normalize=True).sort_index() * 100
         goal_minutes_by_label[label] = dist
 
+# Visualizza grafici
 if goal_minutes_by_label:
     for label, dist in goal_minutes_by_label.items():
         st.write(f"### Label: {label}")
