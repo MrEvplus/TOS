@@ -4,17 +4,38 @@ import numpy as np
 import datetime
 import plotly.express as px
 from st_aggrid import AgGrid, GridOptionsBuilder
+import os
 
+# -------------------------------
+# UTILITY
+# -------------------------------
+
+def classify_goal_minute(minute):
+    if pd.isna(minute):
+        return None
+    minute = int(minute)
+    if minute <= 15:
+        return "0-15"
+    elif minute <= 30:
+        return "16-30"
+    elif minute <= 45:
+        return "31-45"
+    elif minute <= 60:
+        return "46-60"
+    elif minute <= 75:
+        return "60-75"
+    else:
+        return "76-90"
+
+# -------------------------------
+# CONFIG
+# -------------------------------
 st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
 
-# -------------------------------
-# COSTANTI
-# -------------------------------
 DATA_FOLDER = "data"
 DB_FILES = [
     "serie a 20-25.xlsx",
     "kor1 21-25.xlsx",
-    # puoi aggiungere altri file excel qui, caricati manualmente nella repo
 ]
 
 # -------------------------------
@@ -34,8 +55,6 @@ if uploaded_file is not None:
 # SELEZIONA FILE DA USARE
 # -------------------------------
 all_files = DB_FILES
-# Aggiungi eventuali file caricati da upload
-import os
 for f in os.listdir(DATA_FOLDER):
     if f.endswith(".xlsx") and f not in all_files:
         all_files.append(f)
@@ -45,13 +64,12 @@ selected_file = st.selectbox("📂 Seleziona il database da analizzare:", all_fi
 DATA_PATH = os.path.join(DATA_FOLDER, selected_file)
 
 # -------------------------------
-# CARICAMENTO FILE
+# CARICA DATABASE
 # -------------------------------
 try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
     df = list(df.values())[0]
 
-    # ✅ Pulizia nomi colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -70,13 +88,8 @@ except Exception as e:
 # FILTRA PARTITE FUTURE
 # -------------------------------
 if "Data" in df.columns and "Orario" in df.columns:
-    # Converti Data in datetime
     df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
-
-    # Trasforma Orario in stringa
     df["Orario"] = df["Orario"].astype(str).str.zfill(4)
-
-    # Combina data + ora
     df["DataOra"] = pd.to_datetime(
         df["Data"].dt.strftime("%Y-%m-%d") + " " +
         df["Orario"].str.slice(0, 2) + ":" +
@@ -89,7 +102,7 @@ if "Data" in df.columns and "Orario" in df.columns:
     initial_len = len(df)
     df = df[df["DataOra"] <= now]
     st.success(
-        f"✅ Filtrati solo i match giocati fino a {now.strftime('%Y-%m-%d %H:%M')}. "
+        f"✅ Filtrate solo partite giocate fino al {now.strftime('%Y-%m-%d %H:%M')}. "
         f"Righe rimaste: {len(df)} (da {initial_len})"
     )
 else:
@@ -141,7 +154,7 @@ grouped = df.groupby(group_cols).agg(
     BTTS_pct=("btts", "mean"),
 ).reset_index()
 
-# ➡️ MEDIA FINALE (DELTA)
+# MEDIA DELTA
 if not grouped.empty:
     total_matches = grouped["Matches"].sum()
     avg_row = grouped.drop(columns=["country", "Stagione", "Matches"]).multiply(grouped["Matches"], axis=0).sum() / total_matches
@@ -150,9 +163,8 @@ if not grouped.empty:
     avg_row["Stagione"] = "DELTA"
     grouped = pd.concat([grouped, avg_row.to_frame().T], ignore_index=True)
 
-# Arrotonda
 cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
-grouped[cols_pct] = grouped[cols_pct].round(3)
+grouped[cols_pct] = grouped[cols_pct].round(2)
 
 st.subheader("✅ League Stats Summary")
 AgGrid(grouped)
@@ -206,7 +218,6 @@ group_label = df.groupby("Label").agg(
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
-# Visualizza con AgGrid
 gb = GridOptionsBuilder.from_dataframe(group_label)
 gb.configure_default_column(sortable=True, filter=True, resizable=True)
 grid_options = gb.build()
@@ -214,7 +225,7 @@ grid_options = gb.build()
 AgGrid(group_label, gridOptions=grid_options, theme="streamlit", height=350)
 
 # -------------------------------
-# GRAFICO GOAL BANDS per gol SEGNATI
+# GRAFICO DISTRIBUZIONE GOAL SEGNATI
 # -------------------------------
 st.subheader("Distribuzione gol segnati per fasce tempo (Home+Away)")
 
@@ -271,25 +282,4 @@ if goal_band_perc:
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("Nessun dato sui minuti dei gol nel file caricato.")
-
-
-# -------------------------------
-# UTILITY
-# -------------------------------
-def classify_goal_minute(minute):
-    if pd.isna(minute):
-        return None
-    minute = int(minute)
-    if minute <= 15:
-        return "0-15"
-    elif minute <= 30:
-        return "16-30"
-    elif minute <= 45:
-        return "31-45"
-    elif minute <= 60:
-        return "46-60"
-    elif minute <= 75:
-        return "60-75"
-    else:
-        return "76-90"
 
