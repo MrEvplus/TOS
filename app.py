@@ -4,7 +4,7 @@ import numpy as np
 import plotly.express as px
 import os
 import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # -------------------------------
 # Costanti
@@ -210,13 +210,17 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione gol segnati e subiti per fasce tempo - LONG FORMAT
+# Distribuzione gol segnati/subiti
 # -------------------------------
 
-st.subheader(f"✅ Distribuzione Goal Time Frame (mobile friendly)")
+st.subheader(f"✅ Distribuzione Goal Time Frame (stile Excel)")
 
 # Funzione utility per estrarre minuti da stringa tipo "28;54;76"
 def extract_minutes(series):
+    """
+    Prende una colonna di minuti goal (stringa es. "23;45") e
+    restituisce una lista di tutti i minuti come interi.
+    """
     all_minutes = []
     for val in series.dropna():
         if isinstance(val, str):
@@ -236,10 +240,13 @@ time_bands = {
     "76-90": (76,120),
 }
 
+# Dizionario risultati per ciascuna Label
 final_results = {}
 
 for label in df["Label"].dropna().unique():
     sub_df = df[df["Label"] == label]
+
+    # Minuti goal home/away
     minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
     minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
 
@@ -254,72 +261,52 @@ for label in df["Label"].dropna().unique():
         minutes_conceded = []
 
     scored_counts = {band: 0 for band in time_bands}
-    conceded_counts = {band: 0 for band in time_bands}
-
     for m in minutes_scored:
         for band, (low, high) in time_bands.items():
             if low <= m <= high:
                 scored_counts[band] += 1
                 break
 
-    for m in minutes_conceded:
-        for band, (low, high) in time_bands.items():
-            if low <= m <= high:
-                conceded_counts[band] += 1
-                break
-
     total_scored = sum(scored_counts.values())
-    total_conceded = sum(conceded_counts.values())
-
-    scored_perc = {band: (val/total_scored*100 if total_scored>0 else 0) for band,val in scored_counts.items()}
-    conceded_perc = {band: (val/total_conceded*100 if total_conceded>0 else 0) for band,val in conceded_counts.items()}
+    scored_perc = {band: (val/total_scored*100 if total_scored > 0 else 0) for band, val in scored_counts.items()}
 
     final_results[label] = {
         "scored_counts": scored_counts,
-        "conceded_counts": conceded_counts,
         "scored_perc": scored_perc,
-        "conceded_perc": conceded_perc,
         "total_scored": total_scored,
-        "total_conceded": total_conceded
     }
 
-rows = []
-for label, data in final_results.items():
-    for band in time_bands.keys():
-        rows.append({
-            "Label": label,
-            "Time Band": band,
-            "Goals Scored (n)": data["scored_counts"][band],
-            "% Scored": round(data["scored_perc"][band], 2),
-            "Goals Conceded (n)": data["conceded_counts"][band],
-            "% Conceded": round(data["conceded_perc"][band], 2)
-        })
+# Prepara tabella finale
+table_data = []
+for label, res in final_results.items():
+    row = {"Label": label}
+    for band in time_bands:
+        row[band] = f"{res['scored_counts'][band]} ({res['scored_perc'][band]:.2f}%)"
+    row["Total Goals"] = res["total_scored"]
+    table_data.append(row)
 
-if rows:
-    df_long = pd.DataFrame(rows)
+df_final = pd.DataFrame(table_data)
 
-    # Color styling
-    def style_func(val, color):
-        try:
-            if float(val) > 0:
-                alpha = min(float(val) / 100, 1)
-                return f"background-color: rgba({color},{alpha});"
-        except:
-            pass
-        return ""
+# Dropdown per selezionare colonne
+columns = ["Label"] + list(time_bands.keys()) + ["Total Goals"]
+selected_cols = st.multiselect(
+    "Seleziona colonne da visualizzare:",
+    columns,
+    default=columns
+)
 
-    def style_df_long(df):
-        styled = df.style
-        styled = styled.applymap(
-            lambda v: style_func(v, "0,200,0"),
-            subset=["% Scored"]
-        )
-        styled = styled.applymap(
-            lambda v: style_func(v, "255,0,0"),
-            subset=["% Conceded"]
-        )
-        return styled
+# Visualizza AgGrid
+if not df_final.empty:
+    gb = GridOptionsBuilder.from_dataframe(df_final[selected_cols])
+    gb.configure_default_column(min_column_width=100, resizable=True, wrapText=True, autoHeight=True)
+    grid_options = gb.build()
 
-    st.dataframe(style_df_long(df_long), use_container_width=True)
+    AgGrid(
+        df_final[selected_cols],
+        gridOptions=grid_options,
+        height=300,
+        fit_columns_on_grid_load=True,
+        theme="material"
+    )
 else:
     st.info("⚠ Nessun dato sui minuti dei goal nel file caricato.")
