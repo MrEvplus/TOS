@@ -301,9 +301,19 @@ bands_selected = st.multiselect(
 
 # costruisci lista colonne da tenere
 columns_to_show = ["Label"]
+
 for band in bands_selected:
-    columns_to_show += [f"{band} S(n)", f"{band} S(%)", f"{band} C(n)", f"{band} C(%)"]
-columns_to_show += ["Total Scored", "Total Conceded"]
+    # se esistono, aggiungi colonne
+    for suffix in ["S(n)", "S(%)", "C(n)", "C(%)"]:
+        colname = f"{band} {suffix}"
+        if colname in df_final.columns:
+            columns_to_show.append(colname)
+
+# aggiungi sempre Totali se presenti
+for col in ["Total Scored", "Total Conceded"]:
+    if col in df_final.columns:
+        columns_to_show.append(col)
+
 
 df_compact = df_final[columns_to_show].copy()
 
