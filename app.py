@@ -83,6 +83,8 @@ if "Data" in df.columns:
 # -------------------------------
 # Preparazione dati base
 # -------------------------------
+
+# Calcola gol totali e per tempi
 df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
 df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
@@ -107,6 +109,7 @@ df["btts"] = np.where(
 # -------------------------------
 # League Stats Summary
 # -------------------------------
+
 group_cols = ["country", "Stagione"]
 
 grouped = df.groupby(group_cols).agg(
@@ -128,6 +131,7 @@ grouped = df.groupby(group_cols).agg(
     BTTS_pct=("btts", "mean"),
 ).reset_index()
 
+# Media finale
 media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
 media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
 media_row["Stagione"] = "DELTA"
@@ -143,6 +147,7 @@ st.dataframe(grouped, use_container_width=True)
 # -------------------------------
 # League Data by Start Price
 # -------------------------------
+
 st.subheader(f"✅ League Data by Start Price - {db_selected}")
 
 def label_match(row):
@@ -205,9 +210,10 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione gol segnati / subiti per fasce tempo per LABEL
+# Distribuzione gol segnati e subiti per fasce tempo - LONG FORMAT
 # -------------------------------
-st.subheader(f"✅ Distribuzione Goal Time Frame (stile Excel)")
+
+st.subheader(f"✅ Distribuzione Goal Time Frame (mobile friendly)")
 
 # Funzione utility per estrarre minuti da stringa tipo "28;54;76"
 def extract_minutes(series):
@@ -220,6 +226,7 @@ def extract_minutes(series):
                     all_minutes.append(int(part))
     return all_minutes
 
+# Fasce tempo
 time_bands = {
     "0-15": (0,15),
     "16-30": (16,30),
@@ -278,56 +285,41 @@ for label in df["Label"].dropna().unique():
 
 rows = []
 for label, data in final_results.items():
-    row = {"Label": label}
     for band in time_bands.keys():
-        row[f"{band} Scored (n)"] = data["scored_counts"][band]
-        row[f"{band} Scored (%)"] = round(data["scored_perc"][band], 2)
-        row[f"{band} Conceded (n)"] = data["conceded_counts"][band]
-        row[f"{band} Conceded (%)"] = round(data["conceded_perc"][band], 2)
-    row["Total Scored"] = data["total_scored"]
-    row["Total Conceded"] = data["total_conceded"]
-    rows.append(row)
+        rows.append({
+            "Label": label,
+            "Time Band": band,
+            "Goals Scored (n)": data["scored_counts"][band],
+            "% Scored": round(data["scored_perc"][band], 2),
+            "Goals Conceded (n)": data["conceded_counts"][band],
+            "% Conceded": round(data["conceded_perc"][band], 2)
+        })
 
 if rows:
-    df_final = pd.DataFrame(rows)
-    df_final = df_final.fillna(0)
+    df_long = pd.DataFrame(rows)
 
-    columns_ordered = ["Label"]
-    for band in time_bands:
-        columns_ordered += [
-            f"{band} Scored (n)",
-            f"{band} Scored (%)",
-            f"{band} Conceded (n)",
-            f"{band} Conceded (%)"
-        ]
-    columns_ordered += ["Total Scored", "Total Conceded"]
-    df_final = df_final[columns_ordered]
-
-    # ✅ Styler per i colori
-    def highlight(val, color_base):
+    # Color styling
+    def style_func(val, color):
         try:
             if float(val) > 0:
                 alpha = min(float(val) / 100, 1)
-                return f"background-color: rgba({color_base}, {alpha});"
+                return f"background-color: rgba({color},{alpha});"
         except:
             pass
         return ""
 
-    def style_df(df):
+    def style_df_long(df):
         styled = df.style
-        for col in df.columns:
-            if "Scored (%)" in col:
-                styled = styled.applymap(
-                    lambda v: highlight(v, "0, 200, 0"), subset=[col]
-                )
-            elif "Conceded (%)" in col:
-                styled = styled.applymap(
-                    lambda v: highlight(v, "255, 0, 0"), subset=[col]
-                )
+        styled = styled.applymap(
+            lambda v: style_func(v, "0,200,0"),
+            subset=["% Scored"]
+        )
+        styled = styled.applymap(
+            lambda v: style_func(v, "255,0,0"),
+            subset=["% Conceded"]
+        )
         return styled
 
-    st.dataframe(style_df(df_final), use_container_width=True)
-
+    st.dataframe(style_df_long(df_long), use_container_width=True)
 else:
     st.info("⚠ Nessun dato sui minuti dei goal nel file caricato.")
-
