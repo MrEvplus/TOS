@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import plotly.express as px
 import os
 from st_aggrid import AgGrid, GridOptionsBuilder
 
@@ -9,12 +10,16 @@ from st_aggrid import AgGrid, GridOptionsBuilder
 # -------------------------------
 DATA_FOLDER = "data"
 
-st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
+# Imposta titolo pagina
+st.set_page_config(
+    page_title="Trading Dashboard",
+    layout="wide"
+)
 
 # -------------------------------
 # Sezione Upload file multipli
 # -------------------------------
-st.title("Serie A Trading Dashboard")
+st.title("Trading Dashboard")
 
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
@@ -33,7 +38,7 @@ if uploaded_files:
             f.write(uploaded_file.read())
     st.success("✅ File caricati e salvati!")
 
-# Lista dei file presenti nella cartella data
+# Lista file
 db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 if not db_files:
     st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
@@ -53,7 +58,7 @@ try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
     df = list(df.values())[0]
 
-    # Pulizia nomi colonne
+    # Pulizia colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -71,7 +76,7 @@ except Exception as e:
     st.stop()
 
 # -------------------------------
-# Filtro partite già giocate (stagione in corso)
+# Filtro partite già giocate
 # -------------------------------
 if "Data" in df.columns:
     df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
@@ -81,13 +86,10 @@ if "Data" in df.columns:
 # -------------------------------
 # Preparazione dati base
 # -------------------------------
-
-# Calcola gol totali e per tempi
 df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
 df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
 
-# Esito match
 df["match_result"] = np.select(
     [
         df["Home Goal FT"] > df["Away Goal FT"],
@@ -98,7 +100,6 @@ df["match_result"] = np.select(
     default="Unknown"
 )
 
-# BTTS
 df["btts"] = np.where(
     (df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0),
     1, 0
@@ -107,7 +108,6 @@ df["btts"] = np.where(
 # -------------------------------
 # League Stats Summary
 # -------------------------------
-
 group_cols = ["country", "Stagione"]
 
 grouped = df.groupby(group_cols).agg(
@@ -145,7 +145,6 @@ st.dataframe(grouped, use_container_width=True)
 # -------------------------------
 # League Data by Start Price
 # -------------------------------
-
 st.subheader(f"✅ League Data by Start Price - {db_selected}")
 
 def label_match(row):
@@ -153,7 +152,6 @@ def label_match(row):
     a = row.get("Odd Away", np.nan)
     if pd.isna(h) or pd.isna(a):
         return "Others"
-
     if h < 1.5:
         return "H_StrongFav <1.5"
     elif 1.5 <= h < 2:
@@ -194,7 +192,6 @@ group_label = df.groupby("Label").agg(
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
-# Mostra AgGrid
 gb = GridOptionsBuilder.from_dataframe(group_label)
 gb.configure_default_column(filterable=True, sortable=True, resizable=True)
 grid_options = gb.build()
@@ -208,17 +205,12 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione goal time frame
+# Distribuzione Goal Time Frame (SEGNATI + CONCESSI)
 # -------------------------------
-
 st.subheader(f"✅ Distribuzione Goal Time Frame (SEGNATI + CONCESSI) - {db_selected}")
 
-# Funzione utility per estrarre minuti da stringa tipo "28;54;76"
+# Funzione per estrarre minuti
 def extract_minutes(series):
-    """
-    Prende una colonna di minuti goal (stringa es. "23;45") e
-    restituisce una lista di tutti i minuti come interi.
-    """
     all_minutes = []
     for val in series.dropna():
         if isinstance(val, str):
@@ -228,25 +220,21 @@ def extract_minutes(series):
                     all_minutes.append(int(part))
     return all_minutes
 
-# Fasce tempo
 time_bands = {
-    "0-15": (0,15),
-    "16-30": (16,30),
-    "31-45": (31,45),
-    "46-60": (46,60),
-    "61-75": (61,75),
-    "76-90": (76,120),  # includiamo eventuali extra time
+    "0-15": (0, 15),
+    "16-30": (16, 30),
+    "31-45": (31, 45),
+    "46-60": (46, 60),
+    "61-75": (61, 75),
+    "76-90": (76, 120)
 }
 
-# Dizionario risultati per ciascuna Label
-final_results = {}
+rows = []
 
 for label in df["Label"].dropna().unique():
     sub_df = df[df["Label"] == label]
 
-    # Estrai minuti goal Home
     minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-    # Estrai minuti goal Away
     minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
 
     if label.startswith("H_"):
@@ -277,72 +265,42 @@ for label in df["Label"].dropna().unique():
     total_scored = sum(scored_counts.values())
     total_conceded = sum(conceded_counts.values())
 
-    scored_perc = {band: (val/total_scored*100 if total_scored>0 else 0) for band,val in scored_counts.items()}
-    conceded_perc = {band: (val/total_conceded*100 if total_conceded>0 else 0) for band,val in conceded_counts.items()}
+    # Percentuali
+    scored_perc = {f"{band} Scored %": round((val / total_scored * 100), 2) if total_scored > 0 else 0.0 for band, val in scored_counts.items()}
+    conceded_perc = {f"{band} Conceded %": round((val / total_conceded * 100), 2) if total_conceded > 0 else 0.0 for band, val in conceded_counts.items()}
 
-    final_results[label] = {
-        "scored_counts": scored_counts,
-        "conceded_counts": conceded_counts,
-        "scored_perc": scored_perc,
-        "conceded_perc": conceded_perc,
-        "total_scored": total_scored,
-        "total_conceded": total_conceded
-    }
+    row = {"Label": label}
+    for band in time_bands:
+        row[f"{band} Scored (n)"] = scored_counts[band]
+        row[f"{band} Scored %"] = scored_perc[f"{band} Scored %"]
+        row[f"{band} Conceded (n)"] = conceded_counts[band]
+        row[f"{band} Conceded %"] = conceded_perc[f"{band} Conceded %"]
+    row["Total Goals Scored"] = total_scored
+    row["Total Goals Conceded"] = total_conceded
 
-# Visualizza tabella unica
-if final_results:
-    for label, data in final_results.items():
-        st.markdown(f"### ✅ Distribuzione Goal Time Frame - {label}")
+    rows.append(row)
 
-        combined_data = []
-        for band in time_bands:
-            combined_data.append({
-                "Time Band": band,
-                "Goals Scored": data["scored_counts"][band],
-                "Scored %": round(data["scored_perc"][band], 2),
-                "Goals Conceded": data["conceded_counts"][band],
-                "Conceded %": round(data["conceded_perc"][band], 2)
-            })
+df_compact = pd.DataFrame(rows).fillna(0)
 
-        df_combined = pd.DataFrame(combined_data)
-        df_combined = df_combined.astype({
-            "Goals Scored": int,
-            "Scored %": float,
-            "Goals Conceded": int,
-            "Conceded %": float
-        })
+# Convert types to native Python types
+for col in df_compact.columns:
+    if df_compact[col].dtype in ["float64", "int64"]:
+        df_compact[col] = df_compact[col].apply(lambda x: float(x))
 
-        gb = GridOptionsBuilder.from_dataframe(df_combined)
-        gb.configure_default_column(
-            filterable=True,
-            sortable=True,
-            resizable=True,
-            cellStyle={
-                "fontSize": "12px",
-                "padding": "2px"
-            }
-        )
-        gb.configure_columns(
-            ["Scored %"],
-            cellStyle=lambda params: {
-                "backgroundColor": "#d9fdd3" if params.value > 0 else "#ffffff"
-            }
-        )
-        gb.configure_columns(
-            ["Conceded %"],
-            cellStyle=lambda params: {
-                "backgroundColor": "#f8d7da" if params.value > 0 else "#ffffff"
-            }
-        )
+# Configura AgGrid
+gb = GridOptionsBuilder.from_dataframe(df_compact)
+for col in df_compact.columns:
+    if "Scored %" in col:
+        gb.configure_column(col, type=["numericColumn"], cellStyle={"color": "green"})
+    if "Conceded %" in col:
+        gb.configure_column(col, type=["numericColumn"], cellStyle={"color": "red"})
+gb.configure_default_column(filterable=True, sortable=True, resizable=True)
+grid_options = gb.build()
 
-        gridOptions = gb.build()
-
-        AgGrid(
-            df_combined,
-            gridOptions=gridOptions,
-            theme="material",
-            height=220,
-            fit_columns_on_grid_load=True
-        )
-else:
-    st.info("⚠ Nessun dato sui minuti dei goal nel file caricato.")
+AgGrid(
+    df_compact,
+    gridOptions=grid_options,
+    theme="material",
+    height=350,
+    fit_columns_on_grid_load=True
+)
