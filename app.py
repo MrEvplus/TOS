@@ -205,11 +205,27 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione Goal Time Frame (SEGNATI + CONCESSI)
+# Distribuzione Goal Time Frame (SEGNATI + CONCESSI) - con selezione colonne dinamica
 # -------------------------------
+
+import streamlit as st
+import pandas as pd
+import numpy as np
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+
 st.subheader(f"✅ Distribuzione Goal Time Frame (SEGNATI + CONCESSI) - {db_selected}")
 
-# Funzione per estrarre minuti
+# definisci fasce temporali
+time_bands = {
+    "0-15": (0, 15),
+    "16-30": (16, 30),
+    "31-45": (31, 45),
+    "46-60": (46, 60),
+    "61-75": (61, 75),
+    "76-90": (76, 120),
+}
+
+# funzione per estrarre minuti
 def extract_minutes(series):
     all_minutes = []
     for val in series.dropna():
@@ -220,23 +236,14 @@ def extract_minutes(series):
                     all_minutes.append(int(part))
     return all_minutes
 
-time_bands = {
-    "0-15": (0, 15),
-    "16-30": (16, 30),
-    "31-45": (31, 45),
-    "46-60": (46, 60),
-    "61-75": (61, 75),
-    "76-90": (76, 120)
-}
-
-rows = []
+final_data = []
 
 for label in df["Label"].dropna().unique():
     sub_df = df[df["Label"] == label]
-
+    
     minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
     minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
-
+    
     if label.startswith("H_"):
         minutes_scored = minutes_home
         minutes_conceded = minutes_away
@@ -246,16 +253,15 @@ for label in df["Label"].dropna().unique():
     else:
         minutes_scored = minutes_home + minutes_away
         minutes_conceded = []
-
+    
     scored_counts = {band: 0 for band in time_bands}
     conceded_counts = {band: 0 for band in time_bands}
-
+    
     for m in minutes_scored:
         for band, (low, high) in time_bands.items():
             if low <= m <= high:
                 scored_counts[band] += 1
                 break
-
     for m in minutes_conceded:
         for band, (low, high) in time_bands.items():
             if low <= m <= high:
@@ -265,42 +271,75 @@ for label in df["Label"].dropna().unique():
     total_scored = sum(scored_counts.values())
     total_conceded = sum(conceded_counts.values())
 
-    # Percentuali
-    scored_perc = {f"{band} Scored %": round((val / total_scored * 100), 2) if total_scored > 0 else 0.0 for band, val in scored_counts.items()}
-    conceded_perc = {f"{band} Conceded %": round((val / total_conceded * 100), 2) if total_conceded > 0 else 0.0 for band, val in conceded_counts.items()}
-
     row = {"Label": label}
-    for band in time_bands:
-        row[f"{band} Scored (n)"] = scored_counts[band]
-        row[f"{band} Scored %"] = scored_perc[f"{band} Scored %"]
-        row[f"{band} Conceded (n)"] = conceded_counts[band]
-        row[f"{band} Conceded %"] = conceded_perc[f"{band} Conceded %"]
-    row["Total Goals Scored"] = total_scored
-    row["Total Goals Conceded"] = total_conceded
+    for band in time_bands.keys():
+        s = scored_counts[band]
+        c = conceded_counts[band]
+        s_pct = round((s/total_scored*100), 2) if total_scored > 0 else 0
+        c_pct = round((c/total_conceded*100), 2) if total_conceded > 0 else 0
+        row[f"{band} S(n)"] = s
+        row[f"{band} S(%)"] = s_pct
+        row[f"{band} C(n)"] = c
+        row[f"{band} C(%)"] = c_pct
+    row["Total Scored"] = total_scored
+    row["Total Conceded"] = total_conceded
+    
+    final_data.append(row)
 
-    rows.append(row)
+df_final = pd.DataFrame(final_data)
 
-df_compact = pd.DataFrame(rows).fillna(0)
+# colonne disponibili
+all_columns = [col for col in df_final.columns if col != "Label"]
+time_columns_grouped = sorted(set([col.split(" ")[0] for col in all_columns if " " in col]))
 
-# Convert types to native Python types
-for col in df_compact.columns:
-    if df_compact[col].dtype in ["float64", "int64"]:
-        df_compact[col] = df_compact[col].apply(lambda x: float(x))
+# multiselect per scegliere quali intervalli vedere
+bands_selected = st.multiselect(
+    "Scegli intervalli di tempo da visualizzare:",
+    time_columns_grouped,
+    default=time_columns_grouped
+)
 
-# Configura AgGrid
+# costruisci lista colonne da tenere
+columns_to_show = ["Label"]
+for band in bands_selected:
+    columns_to_show += [f"{band} S(n)", f"{band} S(%)", f"{band} C(n)", f"{band} C(%)"]
+columns_to_show += ["Total Scored", "Total Conceded"]
+
+df_compact = df_final[columns_to_show].copy()
+
+# formattazione per renderlo compatto
 gb = GridOptionsBuilder.from_dataframe(df_compact)
+gb.configure_grid_options(domLayout='autoHeight')
 for col in df_compact.columns:
-    if "Scored %" in col:
-        gb.configure_column(col, type=["numericColumn"], cellStyle={"color": "green"})
-    if "Conceded %" in col:
-        gb.configure_column(col, type=["numericColumn"], cellStyle={"color": "red"})
-gb.configure_default_column(filterable=True, sortable=True, resizable=True)
+    gb.configure_column(col, 
+                        minWidth=60, 
+                        maxWidth=100, 
+                        cellStyle={'textAlign': 'center', 'fontSize': '11px', 'padding':'0px'})
+    
+# highlight verde/rosso sulle % se vuoi
+js_highlight = JsCode("""
+function(params) {
+    if (params.value > 0 && params.colDef.field.includes("(%)")) {
+        if (params.colDef.field.includes("S(%)")) {
+            return {'color': 'green'};
+        } else {
+            return {'color': 'red'};
+        }
+    }
+    return {};
+}
+""")
+for col in df_compact.columns:
+    if "(%)" in col:
+        gb.configure_column(col, cellStyle=js_highlight)
+
 grid_options = gb.build()
 
 AgGrid(
     df_compact,
     gridOptions=grid_options,
     theme="material",
-    height=350,
-    fit_columns_on_grid_load=True
+    fit_columns_on_grid_load=True,
+    allow_unsafe_jscode=True,
+    height=400,
 )
