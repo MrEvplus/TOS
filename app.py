@@ -61,7 +61,7 @@ try:
 
     st.success("✅ Database caricato automaticamente!")
     # st.write("Colonne presenti nel database:")
-    # st.write(df.columns.tolist())
+    st.write(df.columns.tolist())
 
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
