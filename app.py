@@ -3,18 +3,15 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder
+import datetime
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # -------------------------------
 # Costanti
 # -------------------------------
 DATA_FOLDER = "data"
 
-# Imposta titolo pagina
-st.set_page_config(
-    page_title="Trading Dashboard",
-    layout="wide"
-)
+st.set_page_config(page_title="Trading Dashboard", layout="wide")
 
 # -------------------------------
 # Sezione Upload file multipli
@@ -38,7 +35,7 @@ if uploaded_files:
             f.write(uploaded_file.read())
     st.success("✅ File caricati e salvati!")
 
-# Lista file
+# Lista dei file presenti nella cartella data
 db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 if not db_files:
     st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
@@ -58,7 +55,7 @@ try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
     df = list(df.values())[0]
 
-    # Pulizia colonne
+    # Pulizia nomi colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -86,10 +83,13 @@ if "Data" in df.columns:
 # -------------------------------
 # Preparazione dati base
 # -------------------------------
+
+# Calcola gol totali e per tempi
 df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
 df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
 
+# Esito match
 df["match_result"] = np.select(
     [
         df["Home Goal FT"] > df["Away Goal FT"],
@@ -100,6 +100,7 @@ df["match_result"] = np.select(
     default="Unknown"
 )
 
+# BTTS
 df["btts"] = np.where(
     (df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0),
     1, 0
@@ -145,6 +146,7 @@ st.dataframe(grouped, use_container_width=True)
 # -------------------------------
 # League Data by Start Price
 # -------------------------------
+
 st.subheader(f"✅ League Data by Start Price - {db_selected}")
 
 def label_match(row):
@@ -152,6 +154,7 @@ def label_match(row):
     a = row.get("Odd Away", np.nan)
     if pd.isna(h) or pd.isna(a):
         return "Others"
+
     if h < 1.5:
         return "H_StrongFav <1.5"
     elif 1.5 <= h < 2:
@@ -192,6 +195,7 @@ group_label = df.groupby("Label").agg(
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
+# Mostra AgGrid
 gb = GridOptionsBuilder.from_dataframe(group_label)
 gb.configure_default_column(filterable=True, sortable=True, resizable=True)
 grid_options = gb.build()
@@ -205,12 +209,82 @@ AgGrid(
 )
 
 # -------------------------------
-# Distribuzione Goal Time Frame (SEGNATI + CONCESSI) - con selezione colonne dinamica
+# Distribuzione Goal Time Frame
 # -------------------------------
 
 st.subheader(f"✅ Distribuzione Goal Time Frame (SEGNATI + CONCESSI) - {db_selected}")
 
-# colonne disponibili
+# Fasce tempo
+time_bands = {
+    "0-15": (0,15),
+    "16-30": (16,30),
+    "31-45": (31,45),
+    "46-60": (46,60),
+    "61-75": (61,75),
+    "76-90": (76,120),
+}
+
+final_data = []
+
+for label in df["Label"].dropna().unique():
+    sub_df = df[df["Label"] == label]
+
+    # Estrai minuti goal Home e Away
+    def extract_minutes(series):
+        all_minutes = []
+        for val in series.dropna():
+            if isinstance(val, str):
+                for part in val.replace(",", ";").split(";"):
+                    part = part.strip()
+                    if part.isdigit():
+                        all_minutes.append(int(part))
+        return all_minutes
+
+    minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+    minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+
+    if label.startswith("H_"):
+        minutes_scored = minutes_home
+        minutes_conceded = minutes_away
+    elif label.startswith("A_"):
+        minutes_scored = minutes_away
+        minutes_conceded = minutes_home
+    else:
+        minutes_scored = minutes_home + minutes_away
+        minutes_conceded = []
+
+    scored_counts = {band: 0 for band in time_bands}
+    conceded_counts = {band: 0 for band in time_bands}
+
+    for m in minutes_scored:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                scored_counts[band] += 1
+                break
+
+    for m in minutes_conceded:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                conceded_counts[band] += 1
+                break
+
+    total_scored = sum(scored_counts.values())
+    total_conceded = sum(conceded_counts.values())
+
+    row = {"Label": label}
+    for band in time_bands:
+        row[f"{band} S(n)"] = scored_counts[band]
+        row[f"{band} S(%)"] = round((scored_counts[band] / total_scored * 100) if total_scored > 0 else 0, 2)
+        row[f"{band} C(n)"] = conceded_counts[band]
+        row[f"{band} C(%)"] = round((conceded_counts[band] / total_conceded * 100) if total_conceded > 0 else 0, 2)
+
+    row["Total Scored"] = total_scored
+    row["Total Conceded"] = total_conceded
+    final_data.append(row)
+
+df_final = pd.DataFrame.from_records(final_data)
+
+# Ora possiamo usare df_final per scegliere colonne
 all_columns = [col for col in df_final.columns if col != "Label"]
 time_columns_grouped = sorted(set([col.split(" ")[0] for col in all_columns if " " in col]))
 
@@ -220,64 +294,54 @@ bands_selected = st.multiselect(
     default=time_columns_grouped
 )
 
-# costruiamo la lista effettiva di colonne esistenti
 columns_to_show = ["Label"]
-
 for band in bands_selected:
     for suffix in ["S(n)", "S(%)", "C(n)", "C(%)"]:
         colname = f"{band} {suffix}"
         if colname in df_final.columns:
             columns_to_show.append(colname)
 
-# aggiungiamo sempre i totali se presenti
 for col in ["Total Scored", "Total Conceded"]:
     if col in df_final.columns:
         columns_to_show.append(col)
 
-# verifica le colonne effettivamente presenti
-missing_cols = set(columns_to_show) - set(df_final.columns)
-if missing_cols:
-    st.warning(f"⚠ Colonne mancanti nel DataFrame: {missing_cols}")
-columns_to_show = [col for col in columns_to_show if col in df_final.columns]
+df_compact = df_final[columns_to_show].copy()
 
-# crea tabella finale
-if columns_to_show:
-    df_compact = df_final[columns_to_show].copy()
+# Visualizza la tabella
+gb = GridOptionsBuilder.from_dataframe(df_compact)
+gb.configure_grid_options(domLayout='autoHeight')
 
-    gb = GridOptionsBuilder.from_dataframe(df_compact)
-    gb.configure_grid_options(domLayout='autoHeight')
-    for col in df_compact.columns:
-        gb.configure_column(col,
-                            minWidth=60,
-                            maxWidth=100,
-                            cellStyle={'textAlign': 'center', 'fontSize': '11px', 'padding':'0px'})
-    
-    # colorazione verde/rosso sulle percentuali
-    js_highlight = JsCode("""
-    function(params) {
-        if (params.value > 0 && params.colDef.field.includes("(%)")) {
-            if (params.colDef.field.includes("S(%)")) {
-                return {'color': 'green'};
-            } else {
-                return {'color': 'red'};
-            }
+for col in df_compact.columns:
+    gb.configure_column(col,
+                        minWidth=60,
+                        maxWidth=100,
+                        cellStyle={'textAlign': 'center', 'fontSize': '11px', 'padding':'0px'})
+
+# Colorazione verde/rossa
+js_highlight = JsCode("""
+function(params) {
+    if (params.value > 0 && params.colDef.field.includes("(%)")) {
+        if (params.colDef.field.includes("S(%)")) {
+            return {'color': 'green'};
+        } else {
+            return {'color': 'red'};
         }
-        return {};
     }
-    """)
-    for col in df_compact.columns:
-        if "(%)" in col:
-            gb.configure_column(col, cellStyle=js_highlight)
+    return {};
+}
+""")
 
-    grid_options = gb.build()
+for col in df_compact.columns:
+    if "(%)" in col:
+        gb.configure_column(col, cellStyle=js_highlight)
 
-    AgGrid(
-        df_compact,
-        gridOptions=grid_options,
-        theme="material",
-        fit_columns_on_grid_load=True,
-        allow_unsafe_jscode=True,
-        height=400,
-    )
-else:
-    st.info("⚠ Nessuna colonna selezionata.")
+grid_options = gb.build()
+
+AgGrid(
+    df_compact,
+    gridOptions=grid_options,
+    theme="material",
+    fit_columns_on_grid_load=True,
+    allow_unsafe_jscode=True,
+    height=400,
+)
