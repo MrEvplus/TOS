@@ -1,23 +1,21 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from st_aggrid import AgGrid, GridOptionsBuilder
+import plotly.express as px
 import os
-import datetime
+from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 
 # -------------------------------
-# CONFIGURAZIONE
+# Costanti
 # -------------------------------
-
 DATA_FOLDER = "data"
 
 st.set_page_config(page_title="Serie A Trading Dashboard", layout="wide")
 st.title("Serie A Trading Dashboard")
 
 # -------------------------------
-# UPLOAD FILE MULTIPLI
+# Sezione Upload file multipli
 # -------------------------------
-
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
 
@@ -34,10 +32,10 @@ if uploaded_files:
             f.write(uploaded_file.read())
     st.success("✅ File caricati e salvati!")
 
-# Lista file
+# Lista file disponibili
 db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 if not db_files:
-    st.warning("⚠ Nessun database presente. Carica un file Excel per iniziare.")
+    st.warning("⚠ Nessun database presente. Carica un file Excel.")
     st.stop()
 
 db_selected = st.selectbox(
@@ -48,13 +46,13 @@ db_selected = st.selectbox(
 DATA_PATH = os.path.join(DATA_FOLDER, db_selected)
 
 # -------------------------------
-# CARICAMENTO FILE
+# Caricamento file selezionato
 # -------------------------------
-
 try:
     df = pd.read_excel(DATA_PATH, sheet_name=None)
     df = list(df.values())[0]
 
+    # pulizia nomi colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -72,18 +70,16 @@ except Exception as e:
     st.stop()
 
 # -------------------------------
-# FILTRO PARTITE GIOCATE
+# Filtro partite già giocate
 # -------------------------------
-
 if "Data" in df.columns:
-    df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
+    df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors="coerce")
     today = pd.Timestamp.today().normalize()
     df = df[(df["Data"].isna()) | (df["Data"] <= today)]
 
 # -------------------------------
-# CALCOLI BASE
+# Preparazione dati base
 # -------------------------------
-
 df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
 df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
@@ -104,9 +100,8 @@ df["btts"] = np.where(
 )
 
 # -------------------------------
-# LEAGUE STATS SUMMARY
+# League Stats Summary
 # -------------------------------
-
 group_cols = ["country", "Stagione"]
 
 grouped = df.groupby(group_cols).agg(
@@ -125,26 +120,25 @@ grouped = df.groupby(group_cols).agg(
     Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
     Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
     Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean"),
+    BTTS_pct=("btts", "mean")
 ).reset_index()
 
-# Media finale
 media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
 media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
 media_row["Stagione"] = "DELTA"
 media_row["Matches"] = grouped["Matches"].sum()
+
 grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
+cols_pct = [c for c in grouped.columns if "_pct" in c or "AvgGoals" in c]
 grouped[cols_pct] = grouped[cols_pct].round(2)
 
 st.subheader(f"✅ League Stats Summary - {db_selected}")
 st.dataframe(grouped, use_container_width=True)
 
 # -------------------------------
-# LEAGUE DATA BY START PRICE
+# League Data by Start Price
 # -------------------------------
-
 st.subheader(f"✅ League Data by Start Price - {db_selected}")
 
 def label_match(row):
@@ -174,106 +168,166 @@ df["Label"] = df.apply(label_match, axis=1)
 
 group_label = df.groupby("Label").agg(
     Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean()*100),
+    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
     AvgGoals1T=("goals_1st_half", "mean"),
     AvgGoals2T=("goals_2nd_half", "mean"),
     AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean()*100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean()*100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean()*100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean()*100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean()*100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean()*100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean()*100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean()*100),
+    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
     BTTS_pct=("btts", "mean")
 ).reset_index()
 
 group_label[cols_pct] = group_label[cols_pct].round(2)
 
 gb = GridOptionsBuilder.from_dataframe(group_label)
-gb.configure_default_column(resizable=True, filterable=True, sortable=True)
+gb.configure_default_column(filterable=True, sortable=True, resizable=True)
 grid_options = gb.build()
 
 AgGrid(
     group_label,
     gridOptions=grid_options,
-    theme="material",
-    height=400,
-    fit_columns_on_grid_load=True
+    height=300,
+    fit_columns_on_grid_load=True,
+    theme="material"
 )
 
 # -------------------------------
-# DISTRIBUZIONE GOAL TIME FRAME
+# Distribuzione Goal Time Frame
 # -------------------------------
+
+# Funzione per estrarre minuti da stringa "12;45"
+def extract_minutes(series):
+    all_minutes = []
+    for val in series.dropna():
+        if isinstance(val, str):
+            for part in val.replace(",", ";").split(";"):
+                part = part.strip()
+                if part.isdigit():
+                    all_minutes.append(int(part))
+    return all_minutes
+
+# Time bands
+time_bands = {
+    "0-15": (0, 15),
+    "16-30": (16, 30),
+    "31-45": (31, 45),
+    "46-60": (46, 60),
+    "61-75": (61, 75),
+    "76-90": (76, 120)
+}
+
+final_results = {}
+
+for label in df["Label"].dropna().unique():
+    sub_df = df[df["Label"] == label]
+    minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+    minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+
+    if label.startswith("H_"):
+        minutes_scored = minutes_home
+        minutes_conceded = minutes_away
+    elif label.startswith("A_"):
+        minutes_scored = minutes_away
+        minutes_conceded = minutes_home
+    else:
+        minutes_scored = minutes_home + minutes_away
+        minutes_conceded = []
+
+    # conteggi
+    scored_counts = {band: 0 for band in time_bands}
+    conceded_counts = {band: 0 for band in time_bands}
+
+    for m in minutes_scored:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                scored_counts[band] += 1
+                break
+
+    for m in minutes_conceded:
+        for band, (low, high) in time_bands.items():
+            if low <= m <= high:
+                conceded_counts[band] += 1
+                break
+
+    total_scored = sum(scored_counts.values())
+    total_conceded = sum(conceded_counts.values())
+
+    scored_perc = {band: (val/total_scored*100 if total_scored>0 else 0) for band, val in scored_counts.items()}
+    conceded_perc = {band: (val/total_conceded*100 if total_conceded>0 else 0) for band, val in conceded_counts.items()}
+
+    final_results[label] = {
+        "scored_counts": scored_counts,
+        "conceded_counts": conceded_counts,
+        "scored_perc": scored_perc,
+        "conceded_perc": conceded_perc,
+        "total_scored": total_scored,
+        "total_conceded": total_conceded
+    }
+
+# Creazione DataFrame compatto per SEGNATI
+compact_data = []
+for label, data in final_results.items():
+    row = {"Label": label}
+    for band in time_bands:
+        n = data["scored_counts"][band]
+        pct = data["scored_perc"][band]
+        cell_value = f"{n} ({pct:.2f}%)"
+        row[band] = {
+            "display": cell_value,
+            "sort_value": pct
+        }
+    row["Total Goals"] = data["total_scored"]
+    compact_data.append(row)
+
+df_compact_scored = pd.DataFrame(compact_data)
+
+# JavaScript renderer
+cell_renderer = JsCode("""
+function(params) {
+    if (typeof params.value === 'object' && params.value !== null) {
+        return params.value.display;
+    }
+    return params.value;
+}
+""")
+
+value_getter = JsCode("""
+function(params) {
+    if (typeof params.data[params.colDef.field] === 'object' && params.data[params.colDef.field] !== null) {
+        return params.data[params.colDef.field].sort_value;
+    }
+    return null;
+}
+""")
+
+# Grid builder
+gb = GridOptionsBuilder.from_dataframe(df_compact_scored)
+
+for band in list(time_bands.keys()) + ["Total Goals"]:
+    gb.configure_column(
+        band,
+        cellRenderer=cell_renderer if band != "Total Goals" else None,
+        valueGetter=value_getter if band != "Total Goals" else None,
+        sortable=True,
+        width=100
+    )
+
+gridOptions = gb.build()
 
 st.subheader("✅ Distribuzione Goal Time Frame (SEGNATI)")
 
-# PREPARAZIONE DATI
-# (qui sotto integra i tuoi veri minuti estratti se li hai)
-# Per ora simuliamo dei dati di esempio:
-# Puoi sostituire con il calcolo reale dai tuoi minuti goal se li hai già
-
-time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
-labels = df["Label"].dropna().unique()
-
-# Simuliamo DataFrame dei goal segnati
-final_scored_data = []
-for label in labels:
-    goals = np.random.randint(0, 100, size=len(time_bands))
-    total = goals.sum()
-    row = {"Label": label}
-    for band, g in zip(time_bands, goals):
-        perc = (g/total*100) if total>0 else 0
-        row[f"{band} Scored (n)"] = g
-        row[f"{band} Scored (%)"] = round(perc, 2)
-        row[band] = f"{g} ({round(perc,2)}%)"
-    row["Total Scored"] = total
-    final_scored_data.append(row)
-
-df_scored_final = pd.DataFrame(final_scored_data)
-
-# Visualizza AgGrid
-gb = GridOptionsBuilder.from_dataframe(df_scored_final)
-gb.configure_default_column(resizable=True, filterable=True, sortable=True)
-gridOptions = gb.build()
-
 AgGrid(
-    df_scored_final,
+    df_compact_scored,
     gridOptions=gridOptions,
-    theme="material",
-    height=400,
     fit_columns_on_grid_load=True,
-)
-
-st.subheader("✅ Distribuzione Goal Time Frame (CONCESSI)")
-
-# Simuliamo DataFrame dei goal concessi
-final_conceded_data = []
-for label in labels:
-    goals = np.random.randint(0, 80, size=len(time_bands))
-    total = goals.sum()
-    row = {"Label": label}
-    for band, g in zip(time_bands, goals):
-        perc = (g/total*100) if total>0 else 0
-        row[f"{band} Conceded (n)"] = g
-        row[f"{band} Conceded (%)"] = round(perc, 2)
-        row[band] = f"{g} ({round(perc,2)}%)"
-    row["Total Conceded"] = total
-    final_conceded_data.append(row)
-
-df_conceded_final = pd.DataFrame(final_conceded_data)
-
-gb = GridOptionsBuilder.from_dataframe(df_conceded_final)
-gb.configure_default_column(resizable=True, filterable=True, sortable=True)
-gridOptions = gb.build()
-
-AgGrid(
-    df_conceded_final,
-    gridOptions=gridOptions,
-    theme="material",
     height=400,
-    fit_columns_on_grid_load=True,
+    theme="material"
 )
