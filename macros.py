@@ -56,14 +56,14 @@ def run_macro_stats(df, db_selected):
         AvgGoals1T=("goals_1st_half", "mean"),
         AvgGoals2T=("goals_2nd_half", "mean"),
         AvgGoalsTotal=("goals_total", "mean"),
-        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+        Over05_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+        Over15_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+        Over25_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+        Over05_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+        Over15_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+        Over25_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+        Over35_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+        Over45_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
         BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
@@ -73,18 +73,25 @@ def run_macro_stats(df, db_selected):
     media_row["Matches"] = grouped["Matches"].sum()
     grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    new_columns = {col: col.replace("_pct", " %") for col in grouped.columns if "_pct" in col}
+    # Rinominare colonne sostituendo pct -> %
+    new_columns = {}
+    for col in grouped.columns:
+        if "pct" in col:
+            new_col = col.replace("_pct", " %").replace("pct", "%")
+        else:
+            new_col = col
+        new_columns[col] = new_col
+
     grouped.rename(columns=new_columns, inplace=True)
 
     cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
-    # Blocca colonne e nasconde indice, se disponibile
     st.subheader(f"✅ League Stats Summary - {db_selected}")
 
     if hasattr(st, "column_config"):
         st.dataframe(
-            grouped,
+            grouped.style.format(precision=2),
             use_container_width=True,
             column_config={
                 "country": st.column_config.Column(width="small", pinned="left"),
@@ -95,7 +102,7 @@ def run_macro_stats(df, db_selected):
     else:
         grouped_no_index = grouped.reset_index(drop=True)
         st.dataframe(
-            grouped_no_index,
+            grouped_no_index.style.format(precision=2),
             use_container_width=True
         )
 
@@ -109,14 +116,14 @@ def run_macro_stats(df, db_selected):
         AvgGoals1T=("goals_1st_half", "mean"),
         AvgGoals2T=("goals_2nd_half", "mean"),
         AvgGoalsTotal=("goals_total", "mean"),
-        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+        Over05_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+        Over15_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+        Over25_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+        Over05_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+        Over15_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+        Over25_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+        Over35_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+        Over45_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
         BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
@@ -127,7 +134,7 @@ def run_macro_stats(df, db_selected):
 
     if hasattr(st, "column_config"):
         st.dataframe(
-            group_label,
+            group_label.style.format(precision=2),
             use_container_width=True,
             column_config={
                 "Label": st.column_config.Column(width="medium", pinned="left"),
@@ -137,12 +144,12 @@ def run_macro_stats(df, db_selected):
     else:
         group_label_no_index = group_label.reset_index(drop=True)
         st.dataframe(
-            group_label_no_index,
+            group_label_no_index.style.format(precision=2),
             use_container_width=True
         )
 
-    # Plotly Goal Time Frame
-    st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
+    # Plotly Goal Time Frame - in percentuale
+    st.subheader(f"✅ Distribuzione Goal Time Frame % per Label - {db_selected}")
 
     time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
 
@@ -161,6 +168,9 @@ def run_macro_stats(df, db_selected):
             minutes_scored = minutes_home + minutes_away
             minutes_conceded = []
 
+        total_scored = len(minutes_scored)
+        total_conceded = len(minutes_conceded)
+
         scored_counts = {band: 0 for band in time_bands}
         conceded_counts = {band: 0 for band in time_bands}
 
@@ -178,22 +188,33 @@ def run_macro_stats(df, db_selected):
                     conceded_counts[band] += 1
                     break
 
+        scored_percents = {
+            band: (scored_counts[band] / total_scored * 100) if total_scored > 0 else 0
+            for band in time_bands
+        }
+
+        conceded_percents = {
+            band: (conceded_counts[band] / total_conceded * 100) if total_conceded > 0 else 0
+            for band in time_bands
+        }
+
         fig = go.Figure()
         fig.add_trace(go.Bar(
             x=time_bands,
-            y=[scored_counts[b] for b in time_bands],
-            name='Goals Scored',
+            y=[scored_percents[b] for b in time_bands],
+            name='Goals Scored (%)',
             marker_color='green'
         ))
         fig.add_trace(go.Bar(
             x=time_bands,
-            y=[conceded_counts[b] for b in time_bands],
-            name='Goals Conceded',
+            y=[conceded_percents[b] for b in time_bands],
+            name='Goals Conceded (%)',
             marker_color='red'
         ))
         fig.update_layout(
-            title=f"Goal Time Frame - {label}",
+            title=f"Goal Time Frame % - {label}",
             barmode='stack',
-            height=400
+            height=400,
+            yaxis=dict(title='Percentage (%)')
         )
         st.plotly_chart(fig, use_container_width=True)
