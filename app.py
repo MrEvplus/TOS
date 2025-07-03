@@ -187,14 +187,27 @@ if menu_option == "Macro Stats per Campionato":
 
     # --- League Data by Start Price ---
     group_label = df.groupby("Label").agg(
-        Matches=("Home", "count"),
-        HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-        Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-        AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
-        AvgGoals1T=("goals_1st_half", "mean"),
-        AvgGoals2T=("goals_2nd_half", "mean"),
-        AvgGoalsTotal=("goals_total", "mean"),
-    ).reset_index()
+    Matches=("Home", "count"),
+    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+    AvgGoals1T=("goals_1st_half", "mean"),
+    AvgGoals2T=("goals_2nd_half", "mean"),
+    AvgGoalsTotal=("goals_total", "mean"),
+    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+    BTTS_pct=("btts", "mean"),
+).reset_index()
+
+cols_pct_label = [col for col in group_label.columns if "_pct" in col or "AvgGoals" in col]
+if cols_pct_label:
+    group_label[cols_pct_label] = group_label[cols_pct_label].round(2)
 
     cols_pct_label = [col for col in group_label.columns if "_pct" in col or "AvgGoals" in col]
     if cols_pct_label:
