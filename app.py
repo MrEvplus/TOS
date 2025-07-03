@@ -179,10 +179,9 @@ if menu_option == "Macro Stats per Campionato":
     media_row["Matches"] = grouped["Matches"].sum()
     grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Arrotonda tutti i numeri a 2 decimali anche nella visualizzazione
-cols_pct = [col for col in grouped.columns if grouped[col].dtype in [np.float64, np.float32]]
-for col in cols_pct:
-    grouped[col] = grouped[col].apply(lambda x: f"{x:.2f}")
+    # Arrotonda tutti i numeri a 2 decimali
+    cols_to_format = grouped.select_dtypes(include=[np.number]).columns
+    grouped[cols_to_format] = grouped[cols_to_format].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
     st.dataframe(grouped, use_container_width=True)
@@ -207,8 +206,7 @@ for col in cols_pct:
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    cols_pct_label = [col for col in group_label.columns if "_pct" in col or "AvgGoals" in col]
-    group_label[cols_pct_label] = group_label[cols_pct_label].round(2)
+    group_label[group_label.columns[1:]] = group_label[group_label.columns[1:]].round(2)
 
     gb = GridOptionsBuilder.from_dataframe(group_label)
     gb.configure_default_column(filterable=True, sortable=True, resizable=True)
@@ -342,4 +340,3 @@ elif menu_option == "Confronto Pre Match":
         st.write(f"- Ospite: {implied_away}%")
 
         st.info("🔧 Qui potrai implementare il confronto con le stats storiche e calcolo ROI sul range quote.")
-
