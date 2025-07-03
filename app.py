@@ -172,11 +172,16 @@ if menu_option == "Macro Stats per Campionato":
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
-    media_row["Stagione"] = "DELTA"
-    media_row["Matches"] = grouped["Matches"].sum()
-    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+    # Media finale
+media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
+media_row["Stagione"] = "Totale"
+media_row["Matches"] = grouped["Matches"].sum()
+grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+
+# Arrotondamento uniforme a 2 decimali
+cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
+grouped[cols_pct] = grouped[cols_pct].round(2)
 
     cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
     cols_pct = [col for col in cols_pct if col in grouped.columns]
