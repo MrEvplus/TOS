@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder
 from streamlit.components.v1 import html
 
 # -------------------------------
@@ -179,15 +178,15 @@ if menu_option == "Macro Stats per Campionato":
     media_row["Matches"] = grouped["Matches"].sum()
     grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Arrotondamento a 2 decimali
-    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
-    grouped[cols_numeric] = grouped[cols_numeric].round(2)
-
-    # Rinomina intestazioni: sostituisci "_pct" con "%"
+    # Sostituisci intestazioni
     new_columns = {
-    col: col.replace("_pct", " %") for col in grouped.columns if "_pct" in col
+        col: col.replace("_pct", " %") for col in grouped.columns if "_pct" in col
     }
     grouped.rename(columns=new_columns, inplace=True)
+
+    # Arrotondamento uniforme
+    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
+    grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
     st.dataframe(
@@ -215,105 +214,21 @@ if menu_option == "Macro Stats per Campionato":
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
+    # Sostituisci intestazioni
+    new_columns_label = {
+        col: col.replace("_pct", " %") for col in group_label.columns if "_pct" in col
+    }
+    group_label.rename(columns=new_columns_label, inplace=True)
+
+    # Arrotondamento
     cols_numeric_label = group_label.select_dtypes(include=[np.number]).columns
     group_label[cols_numeric_label] = group_label[cols_numeric_label].round(2)
 
-    gb = GridOptionsBuilder.from_dataframe(group_label)
-    gb.configure_default_column(filterable=True, sortable=True, resizable=True)
-    grid_options = gb.build()
-
     st.subheader(f"✅ League Data by Start Price - {db_selected}")
-    AgGrid(
-        group_label,
-        gridOptions=grid_options,
-        theme="material",
-        height=400,
-        fit_columns_on_grid_load=True,
+    st.dataframe(
+        group_label.style.format(precision=2),
+        use_container_width=True
     )
-
-    # -------------------------------
-    # Goal Time Frame Table
-    # -------------------------------
-    st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
-
-    time_bands = {
-        "0-15": (0, 15),
-        "16-30": (16, 30),
-        "31-45": (31, 45),
-        "46-60": (46, 60),
-        "61-75": (61, 75),
-        "76-90": (76, 120)
-    }
-
-    table_html = '<table border="1" style="border-collapse:collapse; font-size:12px; width:100%;"><thead><tr><th>Label</th>'
-    for band in time_bands:
-        table_html += f'<th style="text-align:center;">{band}</th>'
-    table_html += '</tr></thead><tbody>'
-
-    for label in df["Label"].dropna().unique():
-        sub_df = df[df["Label"] == label]
-
-        def extract_minutes(series):
-            all_minutes = []
-            for val in series.dropna():
-                if isinstance(val, str):
-                    for part in val.replace(",", ";").split(";"):
-                        part = part.strip()
-                        if part.isdigit():
-                            all_minutes.append(int(part))
-            return all_minutes
-
-        minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-        minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
-
-        if label.startswith("H_"):
-            minutes_scored = minutes_home
-            minutes_conceded = minutes_away
-        elif label.startswith("A_"):
-            minutes_scored = minutes_away
-            minutes_conceded = minutes_home
-        else:
-            minutes_scored = minutes_home + minutes_away
-            minutes_conceded = []
-
-        scored_counts = {band: 0 for band in time_bands}
-        conceded_counts = {band: 0 for band in time_bands}
-
-        for m in minutes_scored:
-            for band, (low, high) in time_bands.items():
-                if low <= m <= high:
-                    scored_counts[band] += 1
-                    break
-
-        for m in minutes_conceded:
-            for band, (low, high) in time_bands.items():
-                if low <= m <= high:
-                    conceded_counts[band] += 1
-                    break
-
-        total_scored = sum(scored_counts.values())
-        total_conceded = sum(conceded_counts.values())
-
-        table_html += f'<tr><td>{label}</td>'
-
-        for band in time_bands:
-            sc = scored_counts[band]
-            cc = conceded_counts[band]
-            pct_s = round((sc / total_scored * 100) if total_scored > 0 else 0, 2)
-            pct_c = round((cc / total_conceded * 100) if total_conceded > 0 else 0, 2)
-
-            bar_html = f"""
-            <div style='width:100px; height:12px; background: linear-gradient(to right, green {pct_s}%, red {pct_c}%); border-radius:3px;'></div>
-            <div style='font-size:10px;'>S:{sc} ({pct_s}%)<br>C:{cc} ({pct_c}%)</div>
-            """
-
-            cell_html = f"<td style='text-align:center; padding:2px;'>{bar_html}</td>"
-            table_html += cell_html
-
-        table_html += '</tr>'
-
-    table_html += '</tbody></table>'
-    html(table_html, height=600, scrolling=True)
 
 # -------------------------------
 # Statistiche per Squadre
