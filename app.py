@@ -172,21 +172,21 @@ if menu_option == "Macro Stats per Campionato":
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    # Riga Totale
-    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
-    media_row["Stagione"] = "Totale"
-    media_row["Matches"] = grouped["Matches"].sum()
-    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+    # Media finale
+media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
+media_row["Stagione"] = "Totale"
+media_row["Matches"] = grouped["Matches"].sum()
+grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Arrotonda tutto
-      cols_numeric = grouped.select_dtypes(include=[np.number]).columns
-      grouped[cols_numeric] = grouped[cols_numeric].round(2)
+# Arrotonda tutto
+cols_numeric = grouped.select_dtypes(include=[np.number]).columns
+grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
-    st.subheader(f"✅ League Stats Summary - {db_selected}")
-    st.dataframe(
-    	grouped.style.format(precision=2),
-    	use_container_width=True
+st.subheader(f"✅ League Stats Summary - {db_selected}")
+st.dataframe(
+    grouped.style.format(precision=2),
+    use_container_width=True
 )
 
     # --- League Data by Start Price ---
