@@ -172,22 +172,22 @@ if menu_option == "Macro Stats per Campionato":
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    # Media finale
-media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
-media_row["Stagione"] = "Totale"
-media_row["Matches"] = grouped["Matches"].sum()
-grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+    # Riga Totale
+    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
+    media_row["Stagione"] = "Totale"
+    media_row["Matches"] = grouped["Matches"].sum()
+    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-# Arrotonda tutto
-cols_numeric = grouped.select_dtypes(include=[np.number]).columns
-grouped[cols_numeric] = grouped[cols_numeric].round(2)
+    # Arrotondamento a 2 decimali
+    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
+    grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
-st.subheader(f"✅ League Stats Summary - {db_selected}")
-st.dataframe(
-    grouped.style.format(precision=2),
-    use_container_width=True
-)
+    st.subheader(f"✅ League Stats Summary - {db_selected}")
+    st.dataframe(
+        grouped.style.format(precision=2),
+        use_container_width=True
+    )
 
     # --- League Data by Start Price ---
     group_label = df.groupby("Label").agg(
@@ -209,7 +209,8 @@ st.dataframe(
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    group_label[group_label.columns[1:]] = group_label[group_label.columns[1:]].round(2)
+    cols_numeric_label = group_label.select_dtypes(include=[np.number]).columns
+    group_label[cols_numeric_label] = group_label[cols_numeric_label].round(2)
 
     gb = GridOptionsBuilder.from_dataframe(group_label)
     gb.configure_default_column(filterable=True, sortable=True, resizable=True)
@@ -230,12 +231,12 @@ st.dataframe(
     st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
 
     time_bands = {
-        "0-15": (0,15),
-        "16-30": (16,30),
-        "31-45": (31,45),
-        "46-60": (46,60),
-        "61-75": (61,75),
-        "76-90": (76,120)
+        "0-15": (0, 15),
+        "16-30": (16, 30),
+        "31-45": (31, 45),
+        "46-60": (46, 60),
+        "61-75": (61, 75),
+        "76-90": (76, 120)
     }
 
     table_html = '<table border="1" style="border-collapse:collapse; font-size:12px; width:100%;"><thead><tr><th>Label</th>'
@@ -292,8 +293,8 @@ st.dataframe(
         for band in time_bands:
             sc = scored_counts[band]
             cc = conceded_counts[band]
-            pct_s = round((sc/total_scored*100) if total_scored > 0 else 0,2)
-            pct_c = round((cc/total_conceded*100) if total_conceded > 0 else 0,2)
+            pct_s = round((sc / total_scored * 100) if total_scored > 0 else 0, 2)
+            pct_c = round((cc / total_conceded * 100) if total_conceded > 0 else 0, 2)
 
             bar_html = f"""
             <div style='width:100px; height:12px; background: linear-gradient(to right, green {pct_s}%, red {pct_c}%); border-radius:3px;'></div>
