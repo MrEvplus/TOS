@@ -9,8 +9,8 @@ def run_macro_stats(df, db_selected):
 
     # Controllo colonne minime
     required_cols = [
-        "Home", "Away", 
-        "Home Goal FT", "Away Goal FT", 
+        "Home", "Away",
+        "Home Goal FT", "Away Goal FT",
         "Home Goal 1T", "Away Goal 1T",
         "country", "Stagione"
     ]
@@ -79,11 +79,25 @@ def run_macro_stats(df, db_selected):
     cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
+    # Blocca colonne e nasconde indice, se disponibile
     st.subheader(f"✅ League Stats Summary - {db_selected}")
-    st.dataframe(
-        grouped.style.format(precision=2),
-        use_container_width=True
-    )
+
+    if hasattr(st, "column_config"):
+        st.dataframe(
+            grouped,
+            use_container_width=True,
+            column_config={
+                "country": st.column_config.Column(width="small", pinned="left"),
+                "Stagione": st.column_config.Column(width="small", pinned="left"),
+            },
+            hide_index=True
+        )
+    else:
+        grouped_no_index = grouped.reset_index(drop=True)
+        st.dataframe(
+            grouped_no_index,
+            use_container_width=True
+        )
 
     # League Data by Start Price
     df["Label"] = df.apply(label_match, axis=1)
@@ -103,17 +117,29 @@ def run_macro_stats(df, db_selected):
         Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
         Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
         Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-        BTTS_pct=("btts", "mean"),
+        BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
     group_label.rename(columns=new_columns, inplace=True)
     group_label[cols_numeric] = group_label[cols_numeric].round(2)
 
     st.subheader(f"✅ League Data by Start Price - {db_selected}")
-    st.dataframe(
-        group_label.style.format(precision=2),
-        use_container_width=True
-    )
+
+    if hasattr(st, "column_config"):
+        st.dataframe(
+            group_label,
+            use_container_width=True,
+            column_config={
+                "Label": st.column_config.Column(width="medium", pinned="left"),
+            },
+            hide_index=True
+        )
+    else:
+        group_label_no_index = group_label.reset_index(drop=True)
+        st.dataframe(
+            group_label_no_index,
+            use_container_width=True
+        )
 
     # Plotly Goal Time Frame
     st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
