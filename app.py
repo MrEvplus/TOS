@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
+from st_aggrid import AgGrid, GridOptionsBuilder
+from streamlit.components.v1 import html
 
 # -------------------------------
 # Costanti
@@ -192,15 +193,6 @@ if menu_option == "Macro Stats per Campionato":
         AvgGoals1T=("goals_1st_half", "mean"),
         AvgGoals2T=("goals_2nd_half", "mean"),
         AvgGoalsTotal=("goals_total", "mean"),
-        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-        BTTS_pct=("btts", "mean"),
     ).reset_index()
 
     group_label[cols_pct] = group_label[cols_pct].round(2)
@@ -217,6 +209,94 @@ if menu_option == "Macro Stats per Campionato":
         height=400,
         fit_columns_on_grid_load=True,
     )
+
+    # -------------------------------
+    # ⚽ Goal Time Frame Table
+    # -------------------------------
+    st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
+
+    # Fasce tempo
+    time_bands = {
+        "0-15": (0,15),
+        "16-30": (16,30),
+        "31-45": (31,45),
+        "46-60": (46,60),
+        "61-75": (61,75),
+        "76-90": (76,120)
+    }
+
+    table_html = '<table border="1" style="border-collapse:collapse; font-size:12px;"><thead><tr><th style="padding:4px;">Label</th>'
+
+    for band in time_bands:
+        table_html += f'<th style="padding:4px; text-align:center;">{band}</th>'
+    table_html += '</tr></thead><tbody>'
+
+    for label in df["Label"].dropna().unique():
+        sub_df = df[df["Label"] == label]
+
+        # estrai minuti goal
+        def extract_minutes(series):
+            all_minutes = []
+            for val in series.dropna():
+                if isinstance(val, str):
+                    for part in val.replace(",", ";").split(";"):
+                        part = part.strip()
+                        if part.isdigit():
+                            all_minutes.append(int(part))
+            return all_minutes
+
+        minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+        minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+
+        if label.startswith("H_"):
+            minutes_scored = minutes_home
+            minutes_conceded = minutes_away
+        elif label.startswith("A_"):
+            minutes_scored = minutes_away
+            minutes_conceded = minutes_home
+        else:
+            minutes_scored = minutes_home + minutes_away
+            minutes_conceded = []
+
+        scored_counts = {band: 0 for band in time_bands}
+        conceded_counts = {band: 0 for band in time_bands}
+
+        for m in minutes_scored:
+            for band, (low, high) in time_bands.items():
+                if low <= m <= high:
+                    scored_counts[band] += 1
+                    break
+
+        for m in minutes_conceded:
+            for band, (low, high) in time_bands.items():
+                if low <= m <= high:
+                    conceded_counts[band] += 1
+                    break
+
+        total_scored = sum(scored_counts.values())
+        total_conceded = sum(conceded_counts.values())
+
+        table_html += f'<tr><td style="padding:4px;">{label}</td>'
+
+        for band in time_bands:
+            sc = scored_counts[band]
+            cc = conceded_counts[band]
+            pct_s = round((sc/total_scored*100) if total_scored > 0 else 0,2)
+            pct_c = round((cc/total_conceded*100) if total_conceded > 0 else 0,2)
+
+            bar_html = f"""
+            <div style='width:100px; height:12px; background: linear-gradient(to right, green {pct_s}%, red {pct_c}%); border-radius:3px;'></div>
+            <div style='font-size:10px;'>S:{sc} ({pct_s}%)<br>C:{cc} ({pct_c}%)</div>
+            """
+
+            cell_html = f"<td style='text-align:center; padding:2px;'>{bar_html}</td>"
+            table_html += cell_html
+
+        table_html += '</tr>'
+
+    table_html += '</tbody></table>'
+
+    html(table_html, height=600, scrolling=True)
 
 # -------------------------------
 # Statistiche per Squadre
@@ -253,4 +333,3 @@ elif menu_option == "Confronto Pre Match":
         st.write(f"- Ospite: {implied_away}%")
 
         st.info("🔧 Qui potrai implementare il confronto con le stats storiche e calcolo ROI sul range quote.")
-
