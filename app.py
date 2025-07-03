@@ -16,14 +16,27 @@ st.set_page_config(
 )
 
 # -------------------------------
+# Sidebar con navigazione
+# -------------------------------
+st.sidebar.title("📊 Trading Dashboard")
+menu_option = st.sidebar.radio(
+    "Naviga tra le sezioni:",
+    [
+        "Macro Stats per Campionato",
+        "Statistiche per Squadre",
+        "Confronto Pre Match"
+    ]
+)
+
+# -------------------------------
 # Sezione Upload file multipli
 # -------------------------------
-st.title("Trading Dashboard")
-
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
 
-uploaded_files = st.file_uploader(
+st.sidebar.header("📥 Upload Database")
+
+uploaded_files = st.sidebar.file_uploader(
     "Carica uno o più database Excel:",
     type=["xlsx"],
     accept_multiple_files=True
@@ -35,15 +48,15 @@ if uploaded_files:
         save_path = os.path.join(DATA_FOLDER, uploaded_file.name)
         with open(save_path, "wb") as f:
             f.write(uploaded_file.read())
-    st.success("✅ File caricati e salvati!")
+    st.sidebar.success("✅ File caricati e salvati!")
 
-# Lista file
+# Lista file disponibili
 db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 if not db_files:
     st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
     st.stop()
 
-db_selected = st.selectbox(
+db_selected = st.sidebar.selectbox(
     "Seleziona Campionato (Database):",
     db_files
 )
@@ -66,7 +79,7 @@ try:
         .str.replace(r"\s+", " ", regex=True)
     )
 
-    st.success("✅ Database caricato automaticamente!")
+    st.sidebar.success("✅ Database caricato automaticamente!")
 
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
@@ -103,47 +116,8 @@ df["btts"] = np.where(
 )
 
 # -------------------------------
-# League Stats Summary
+# Funzione etichettatura quote
 # -------------------------------
-group_cols = ["country", "Stagione"]
-
-grouped = df.groupby(group_cols).agg(
-    Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
-    AvgGoals1T=("goals_1st_half", "mean"),
-    AvgGoals2T=("goals_2nd_half", "mean"),
-    AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean"),
-).reset_index()
-
-# Media finale
-media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
-media_row["Stagione"] = "DELTA"
-media_row["Matches"] = grouped["Matches"].sum()
-grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
-
-cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
-grouped[cols_pct] = grouped[cols_pct].round(2)
-
-st.subheader(f"✅ League Stats Summary - {db_selected}")
-st.dataframe(grouped, use_container_width=True)
-
-# -------------------------------
-# League Data by Start Price
-# -------------------------------
-st.subheader(f"✅ League Data by Start Price - {db_selected}")
-
 def label_match(row):
     h = row.get("Odd home", np.nan)
     a = row.get("Odd Away", np.nan)
@@ -168,215 +142,115 @@ def label_match(row):
 
 df["Label"] = df.apply(label_match, axis=1)
 
-group_label = df.groupby("Label").agg(
-    Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean()*100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean()*100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean()*100),
-    AvgGoals1T=("goals_1st_half", "mean"),
-    AvgGoals2T=("goals_2nd_half", "mean"),
-    AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean()*100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean()*100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean()*100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean()*100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean()*100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean()*100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean()*100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean()*100),
-    BTTS_pct=("btts", "mean")
-).reset_index()
+# -------------------------------
+# Macro Stats per Campionato
+# -------------------------------
+if menu_option == "Macro Stats per Campionato":
 
-group_label[cols_pct] = group_label[cols_pct].round(2)
+    st.title(f"Macro Stats per Campionato - {db_selected}")
 
-gb = GridOptionsBuilder.from_dataframe(group_label)
-gb.configure_default_column(filterable=True, sortable=True, resizable=True)
-grid_options = gb.build()
+    # --- League Stats Summary ---
+    group_cols = ["country", "Stagione"]
 
-AgGrid(
-    group_label,
-    gridOptions=grid_options,
-    theme="material",
-    height=300,
-    fit_columns_on_grid_load=True
-)
+    grouped = df.groupby(group_cols).agg(
+        Matches=("Home", "count"),
+        HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+        Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+        AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+        AvgGoals1T=("goals_1st_half", "mean"),
+        AvgGoals2T=("goals_2nd_half", "mean"),
+        AvgGoalsTotal=("goals_total", "mean"),
+        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+        BTTS_pct=("btts", "mean"),
+    ).reset_index()
+
+    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
+    media_row["Stagione"] = "DELTA"
+    media_row["Matches"] = grouped["Matches"].sum()
+    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+
+    cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
+    grouped[cols_pct] = grouped[cols_pct].round(2)
+
+    st.subheader(f"✅ League Stats Summary - {db_selected}")
+    st.dataframe(grouped, use_container_width=True)
+
+    # --- League Data by Start Price ---
+    group_label = df.groupby("Label").agg(
+        Matches=("Home", "count"),
+        HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+        Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+        AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+        AvgGoals1T=("goals_1st_half", "mean"),
+        AvgGoals2T=("goals_2nd_half", "mean"),
+        AvgGoalsTotal=("goals_total", "mean"),
+        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+        BTTS_pct=("btts", "mean"),
+    ).reset_index()
+
+    group_label[cols_pct] = group_label[cols_pct].round(2)
+
+    gb = GridOptionsBuilder.from_dataframe(group_label)
+    gb.configure_default_column(filterable=True, sortable=True, resizable=True)
+    grid_options = gb.build()
+
+    st.subheader(f"✅ League Data by Start Price - {db_selected}")
+    AgGrid(
+        group_label,
+        gridOptions=grid_options,
+        theme="material",
+        height=400,
+        fit_columns_on_grid_load=True,
+    )
 
 # -------------------------------
-# Fasce Tempo
+# Statistiche per Squadre
 # -------------------------------
-time_bands = {
-    "0-15": (0,15),
-    "16-30": (16,30),
-    "31-45": (31,45),
-    "46-60": (46,60),
-    "61-75": (61,75),
-    "76-90": (76,120),
-}
+elif menu_option == "Statistiche per Squadre":
+    st.title(f"Statistiche per Squadre - {db_selected}")
+    st.info("🔧 Qui potrai implementare il calcolo di tutte le statistiche per singola squadra, sia home sia away, es. medie gol fatti/subiti, over %, etc.")
 
 # -------------------------------
-# Calcolo Distribuzione Goal
+# Confronto Pre Match
 # -------------------------------
-final_scored = []
-final_conceded = []
+elif menu_option == "Confronto Pre Match":
+    st.title("Confronto Pre Match")
 
-def extract_minutes(series):
-    all_minutes = []
-    for val in series.dropna():
-        if isinstance(val, str):
-            for part in val.replace(",", ";").split(";"):
-                part = part.strip()
-                if part.isdigit():
-                    all_minutes.append(int(part))
-    return all_minutes
+    squadra_casa = st.text_input("Squadra Casa")
+    squadra_ospite = st.text_input("Squadra Ospite")
 
-for label in df["Label"].dropna().unique():
-    sub_df = df[df["Label"] == label]
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        odd_home = st.number_input("Quota Vincente Casa", min_value=1.01, step=0.01)
+    with col2:
+        odd_draw = st.number_input("Quota Pareggio", min_value=1.01, step=0.01)
+    with col3:
+        odd_away = st.number_input("Quota Vincente Ospite", min_value=1.01, step=0.01)
 
-    minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-    minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+    if squadra_casa and squadra_ospite:
+        implied_home = round(100 / odd_home, 2)
+        implied_draw = round(100 / odd_draw, 2)
+        implied_away = round(100 / odd_away, 2)
 
-    if label.startswith("H_"):
-        minutes_scored = minutes_home
-        minutes_conceded = minutes_away
-    elif label.startswith("A_"):
-        minutes_scored = minutes_away
-        minutes_conceded = minutes_home
-    else:
-        minutes_scored = minutes_home + minutes_away
-        minutes_conceded = []
+        st.write(f"**Probabilità implicita:**")
+        st.write(f"- Casa: {implied_home}%")
+        st.write(f"- Pareggio: {implied_draw}%")
+        st.write(f"- Ospite: {implied_away}%")
 
-    scored_counts = {band: 0 for band in time_bands}
-    conceded_counts = {band: 0 for band in time_bands}
+        st.info("🔧 Qui potrai implementare il confronto con le stats storiche e calcolo ROI sul range quote.")
 
-    for m in minutes_scored:
-        for band, (low, high) in time_bands.items():
-            if low <= m <= high:
-                scored_counts[band] += 1
-                break
-
-    for m in minutes_conceded:
-        for band, (low, high) in time_bands.items():
-            if low <= m <= high:
-                conceded_counts[band] += 1
-                break
-
-    total_scored = sum(scored_counts.values())
-    total_conceded = sum(conceded_counts.values())
-
-    row_scored = {"Label": label}
-    row_conceded = {"Label": label}
-
-    for band in time_bands:
-        row_scored[f"{band} (n)"] = scored_counts[band]
-        row_scored[f"{band} (%)"] = round((scored_counts[band]/total_scored * 100) if total_scored > 0 else 0, 2)
-        row_conceded[f"{band} (n)"] = conceded_counts[band]
-        row_conceded[f"{band} (%)"] = round((conceded_counts[band]/total_conceded * 100) if total_conceded > 0 else 0, 2)
-
-    row_scored["Total Goals"] = total_scored
-    row_conceded["Total Goals"] = total_conceded
-
-    final_scored.append(row_scored)
-    final_conceded.append(row_conceded)
-
-df_scored = pd.DataFrame(final_scored)
-df_conceded = pd.DataFrame(final_conceded)
-
-# -------------------------------
-# TABELLE GOAL SEGNATI
-# -------------------------------
-st.subheader(f"✅ Distribuzione Goal Time Frame (SEGNATI) - {db_selected}")
-
-columns_grouped = sorted(set([c.split(" ")[0] for c in df_scored.columns if c not in ["Label", "Total Goals"]]))
-
-bands_selected = st.multiselect(
-    "Scegli intervalli di tempo da visualizzare:",
-    columns_grouped,
-    default=columns_grouped
-)
-
-columns_to_show = ["Label"]
-for band in bands_selected:
-    for suffix in ["(n)", "(%)"]:
-        colname = f"{band} {suffix}"
-        if colname in df_scored.columns:
-            columns_to_show.append(colname)
-
-columns_to_show.append("Total Goals")
-
-df_compact_scored = df_scored[columns_to_show].copy()
-
-gb = GridOptionsBuilder.from_dataframe(df_compact_scored)
-gb.configure_grid_options(domLayout='autoHeight')
-
-js_green = JsCode("""
-function(params) {
-    if (params.value > 0 && params.colDef.field.includes("(%)")) {
-        return {'color': 'green'};
-    }
-    return {};
-}
-""")
-
-for col in df_compact_scored.columns:
-    if "(%)" in col:
-        gb.configure_column(col, cellStyle=js_green)
-    else:
-        gb.configure_column(col, minWidth=60, maxWidth=100,
-                            cellStyle={'textAlign': 'center', 'fontSize': '11px', 'padding':'0px'})
-
-grid_options = gb.build()
-
-AgGrid(
-    df_compact_scored,
-    gridOptions=grid_options,
-    theme="material",
-    fit_columns_on_grid_load=True,
-    allow_unsafe_jscode=True,
-    height=400,
-)
-
-# -------------------------------
-# TABELLA GOAL CONCESSI
-# -------------------------------
-st.subheader(f"✅ Distribuzione Goal Time Frame (CONCESSI) - {db_selected}")
-
-columns_to_show = ["Label"]
-for band in bands_selected:
-    for suffix in ["(n)", "(%)"]:
-        colname = f"{band} {suffix}"
-        if colname in df_conceded.columns:
-            columns_to_show.append(colname)
-
-columns_to_show.append("Total Goals")
-
-df_compact_conceded = df_conceded[columns_to_show].copy()
-
-gb = GridOptionsBuilder.from_dataframe(df_compact_conceded)
-gb.configure_grid_options(domLayout='autoHeight')
-
-js_red = JsCode("""
-function(params) {
-    if (params.value > 0 && params.colDef.field.includes("(%)")) {
-        return {'color': 'red'};
-    }
-    return {};
-}
-""")
-
-for col in df_compact_conceded.columns:
-    if "(%)" in col:
-        gb.configure_column(col, cellStyle=js_red)
-    else:
-        gb.configure_column(col, minWidth=60, maxWidth=100,
-                            cellStyle={'textAlign': 'center', 'fontSize': '11px', 'padding':'0px'})
-
-grid_options = gb.build()
-
-AgGrid(
-    df_compact_conceded,
-    gridOptions=grid_options,
-    theme="material",
-    fit_columns_on_grid_load=True,
-    allow_unsafe_jscode=True,
-    height=400,
-)
