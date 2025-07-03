@@ -179,9 +179,10 @@ if menu_option == "Macro Stats per Campionato":
     media_row["Matches"] = grouped["Matches"].sum()
     grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Arrotonda a 2 decimali
-    cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
-    grouped[cols_pct] = grouped[cols_pct].round(2)
+    # Arrotonda tutti i numeri a 2 decimali anche nella visualizzazione
+cols_pct = [col for col in grouped.columns if grouped[col].dtype in [np.float64, np.float32]]
+for col in cols_pct:
+    grouped[col] = grouped[col].apply(lambda x: f"{x:.2f}")
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
     st.dataframe(grouped, use_container_width=True)
