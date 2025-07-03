@@ -64,7 +64,7 @@ def run_macro_stats(df, db_selected):
         Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
         Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
         Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-        BTTS_pct=("btts", "mean"),
+        BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
     media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
