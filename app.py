@@ -183,6 +183,12 @@ if menu_option == "Macro Stats per Campionato":
     cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
+    # Rinomina intestazioni: sostituisci "_pct" con "%"
+    new_columns = {
+    col: col.replace("_pct", " %") for col in grouped.columns if "_pct" in col
+    }
+    grouped.rename(columns=new_columns, inplace=True)
+
     st.subheader(f"✅ League Stats Summary - {db_selected}")
     st.dataframe(
         grouped.style.format(precision=2),
