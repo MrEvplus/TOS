@@ -76,25 +76,6 @@ if "Data" in df.columns:
     today = pd.Timestamp.today().normalize()
     df = df[(df["Data"].isna()) | (df["Data"] <= today)]
 
-df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
-df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
-df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
-
-df["match_result"] = np.select(
-    [
-        df["Home Goal FT"] > df["Away Goal FT"],
-        df["Home Goal FT"] == df["Away Goal FT"],
-        df["Home Goal FT"] < df["Away Goal FT"]
-    ],
-    ["Home Win", "Draw", "Away Win"],
-    default="Unknown"
-)
-
-df["btts"] = np.where(
-    (df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0),
-    1, 0
-)
-
 if menu_option == "Macro Stats per Campionato":
     run_macro_stats(df, db_selected)
 
