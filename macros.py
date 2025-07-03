@@ -7,10 +7,49 @@ from utils import label_match, extract_minutes
 def run_macro_stats(df, db_selected):
     st.title(f"Macro Stats per Campionato - {db_selected}")
 
+    # Controllo colonne minime
+    required_cols = [
+        "Home", "Away", 
+        "Home Goal FT", "Away Goal FT", 
+        "Home Goal 1T", "Away Goal 1T",
+        "country", "Stagione"
+    ]
+
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        st.error(f"⚠️ Mancano colonne essenziali nel database: {missing_cols}")
+        st.write("Colonne presenti nel file:", list(df.columns))
+        st.stop()
+
+    # Crea colonne mancanti se non esistono
+    if "goals_total" not in df.columns:
+        df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
+
+    if "goals_1st_half" not in df.columns:
+        df["goals_1st_half"] = df["Home Goal 1T"] + df["Away Goal 1T"]
+
+    if "goals_2nd_half" not in df.columns:
+        df["goals_2nd_half"] = df["goals_total"] - df["goals_1st_half"]
+
+    if "btts" not in df.columns:
+        df["btts"] = ((df["Home Goal FT"] > 0) & (df["Away Goal FT"] > 0)).astype(int)
+
+    if "match_result" not in df.columns:
+        df["match_result"] = df.apply(
+            lambda row: (
+                "Home Win" if row["Home Goal FT"] > row["Away Goal FT"]
+                else "Away Win" if row["Home Goal FT"] < row["Away Goal FT"]
+                else "Draw"
+            ),
+            axis=1
+        )
+
+    home_col = "Home"
+
     # League Stats Summary
     group_cols = ["country", "Stagione"]
     grouped = df.groupby(group_cols).agg(
-        Matches=("Home", "count"),
+        Matches=(home_col, "count"),
         HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
         Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
         AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
@@ -49,7 +88,7 @@ def run_macro_stats(df, db_selected):
     # League Data by Start Price
     df["Label"] = df.apply(label_match, axis=1)
     group_label = df.groupby("Label").agg(
-        Matches=("Home", "count"),
+        Matches=(home_col, "count"),
         HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
         Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
         AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
