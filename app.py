@@ -172,19 +172,15 @@ if menu_option == "Macro Stats per Campionato":
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    # Media finale
-media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
-media_row["Stagione"] = "Totale"
-media_row["Matches"] = grouped["Matches"].sum()
-grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+    # Riga Totale
+    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
+    media_row["Stagione"] = "Totale"
+    media_row["Matches"] = grouped["Matches"].sum()
+    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-# Arrotondamento uniforme a 2 decimali
-cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
-grouped[cols_pct] = grouped[cols_pct].round(2)
-
+    # Arrotonda a 2 decimali
     cols_pct = [col for col in grouped.columns if "_pct" in col or "AvgGoals" in col]
-    cols_pct = [col for col in cols_pct if col in grouped.columns]
     grouped[cols_pct] = grouped[cols_pct].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
@@ -192,31 +188,26 @@ grouped[cols_pct] = grouped[cols_pct].round(2)
 
     # --- League Data by Start Price ---
     group_label = df.groupby("Label").agg(
-    Matches=("Home", "count"),
-    HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
-    Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
-    AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
-    AvgGoals1T=("goals_1st_half", "mean"),
-    AvgGoals2T=("goals_2nd_half", "mean"),
-    AvgGoalsTotal=("goals_total", "mean"),
-    Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
-    Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
-    Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
-    Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
-    Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
-    Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
-    BTTS_pct=("btts", "mean"),
-).reset_index()
-
-cols_pct_label = [col for col in group_label.columns if "_pct" in col or "AvgGoals" in col]
-if cols_pct_label:
-    group_label[cols_pct_label] = group_label[cols_pct_label].round(2)
+        Matches=("Home", "count"),
+        HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+        Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+        AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100),
+        AvgGoals1T=("goals_1st_half", "mean"),
+        AvgGoals2T=("goals_2nd_half", "mean"),
+        AvgGoalsTotal=("goals_total", "mean"),
+        Over0_5_FH_pct=("goals_1st_half", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FH_pct=("goals_1st_half", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FH_pct=("goals_1st_half", lambda x: (x > 2.5).mean() * 100),
+        Over0_5_FT_pct=("goals_total", lambda x: (x > 0.5).mean() * 100),
+        Over1_5_FT_pct=("goals_total", lambda x: (x > 1.5).mean() * 100),
+        Over2_5_FT_pct=("goals_total", lambda x: (x > 2.5).mean() * 100),
+        Over3_5_FT_pct=("goals_total", lambda x: (x > 3.5).mean() * 100),
+        Over4_5_FT_pct=("goals_total", lambda x: (x > 4.5).mean() * 100),
+        BTTS_pct=("btts", "mean"),
+    ).reset_index()
 
     cols_pct_label = [col for col in group_label.columns if "_pct" in col or "AvgGoals" in col]
-    if cols_pct_label:
-        group_label[cols_pct_label] = group_label[cols_pct_label].round(2)
+    group_label[cols_pct_label] = group_label[cols_pct_label].round(2)
 
     gb = GridOptionsBuilder.from_dataframe(group_label)
     gb.configure_default_column(filterable=True, sortable=True, resizable=True)
@@ -232,7 +223,7 @@ if cols_pct_label:
     )
 
     # -------------------------------
-    # ⚽ Goal Time Frame Table
+    # Goal Time Frame Table
     # -------------------------------
     st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
 
@@ -350,3 +341,4 @@ elif menu_option == "Confronto Pre Match":
         st.write(f"- Ospite: {implied_away}%")
 
         st.info("🔧 Qui potrai implementare il confronto con le stats storiche e calcolo ROI sul range quote.")
+
