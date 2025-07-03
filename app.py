@@ -179,12 +179,15 @@ if menu_option == "Macro Stats per Campionato":
     media_row["Matches"] = grouped["Matches"].sum()
     grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Arrotonda tutti i numeri a 2 decimali
-    cols_to_format = grouped.select_dtypes(include=[np.number]).columns
-    grouped[cols_to_format] = grouped[cols_to_format].round(2)
+    # Arrotonda tutto
+      cols_numeric = grouped.select_dtypes(include=[np.number]).columns
+      grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
-    st.dataframe(grouped, use_container_width=True)
+    st.dataframe(
+    	grouped.style.format(precision=2),
+    	use_container_width=True
+)
 
     # --- League Data by Start Price ---
     group_label = df.groupby("Label").agg(
