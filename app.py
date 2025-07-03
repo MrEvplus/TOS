@@ -23,9 +23,11 @@ menu_option = st.sidebar.radio(
     ]
 )
 
+# Crea cartella data se non esiste
 if not os.path.exists(DATA_FOLDER):
     os.makedirs(DATA_FOLDER)
 
+# Upload file
 st.sidebar.header("📥 Upload Database")
 
 uploaded_files = st.sidebar.file_uploader(
@@ -41,11 +43,13 @@ if uploaded_files:
             f.write(uploaded_file.read())
     st.sidebar.success("✅ File caricati e salvati!")
 
+# Lista file presenti
 db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 if not db_files:
     st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
     st.stop()
 
+# Seleziona database
 db_selected = st.sidebar.selectbox(
     "Seleziona Campionato (Database):",
     db_files
@@ -54,9 +58,23 @@ db_selected = st.sidebar.selectbox(
 DATA_PATH = os.path.join(DATA_FOLDER, db_selected)
 
 try:
-    df = pd.read_excel(DATA_PATH, sheet_name=None)
-    df = list(df.values())[0]
+    # Carica Excel per vedere i fogli disponibili
+    xls = pd.ExcelFile(DATA_PATH)
 
+    st.sidebar.success("✅ Database caricato automaticamente!")
+    st.sidebar.write("✅ Fogli disponibili nel file Excel:")
+    st.sidebar.write(xls.sheet_names)
+
+    # Permetti scelta foglio
+    sheet_name = st.sidebar.selectbox(
+        "Scegli il foglio da elaborare:",
+        xls.sheet_names
+    )
+
+    # Leggi il foglio selezionato
+    df = pd.read_excel(DATA_PATH, sheet_name=sheet_name)
+
+    # Pulisci nomi colonne
     df.columns = (
         df.columns
         .astype(str)
@@ -65,17 +83,28 @@ try:
         .str.replace(r"\s+", " ", regex=True)
     )
 
-    st.sidebar.success("✅ Database caricato automaticamente!")
+    st.sidebar.success("✅ Foglio Excel caricato correttamente!")
 
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
     st.stop()
 
+# Mostra colonne disponibili per debug
+st.write("✅ Colonne presenti nel foglio selezionato:")
+st.write(list(df.columns))
+
+# Controllo colonna essenziale "Home"
+if "Home" not in df.columns:
+    st.error("⚠️ La colonna 'Home' non esiste nel foglio selezionato. Controlla che il file Excel sia corretto.")
+    st.stop()
+
+# Eventuale filtro sulla data
 if "Data" in df.columns:
     df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
     today = pd.Timestamp.today().normalize()
     df = df[(df["Data"].isna()) | (df["Data"] <= today)]
 
+# Chiamata al modulo selezionato
 if menu_option == "Macro Stats per Campionato":
     run_macro_stats(df, db_selected)
 
