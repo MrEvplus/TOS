@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+import plotly.graph_objects as go
 from streamlit.components.v1 import html
 
 # -------------------------------
@@ -214,13 +215,11 @@ if menu_option == "Macro Stats per Campionato":
         BTTS_pct=("btts", "mean"),
     ).reset_index()
 
-    # Sostituisci intestazioni
     new_columns_label = {
         col: col.replace("_pct", " %") for col in group_label.columns if "_pct" in col
     }
     group_label.rename(columns=new_columns_label, inplace=True)
 
-    # Arrotondamento
     cols_numeric_label = group_label.select_dtypes(include=[np.number]).columns
     group_label[cols_numeric_label] = group_label[cols_numeric_label].round(2)
 
@@ -229,6 +228,91 @@ if menu_option == "Macro Stats per Campionato":
         group_label.style.format(precision=2),
         use_container_width=True
     )
+
+    # -------------------------------
+    # Plotly Goal Time Frame Chart
+    # -------------------------------
+    st.subheader(f"✅ Distribuzione Goal Time Frame per Label - {db_selected}")
+
+    time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
+
+    chart_data = []
+    labels = []
+
+    for label in df["Label"].dropna().unique():
+        sub_df = df[df["Label"] == label]
+
+        def extract_minutes(series):
+            all_minutes = []
+            for val in series.dropna():
+                if isinstance(val, str):
+                    for part in val.replace(",", ";").split(";"):
+                        part = part.strip()
+                        if part.isdigit():
+                            all_minutes.append(int(part))
+            return all_minutes
+
+        minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+        minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+
+        if label.startswith("H_"):
+            minutes_scored = minutes_home
+            minutes_conceded = minutes_away
+        elif label.startswith("A_"):
+            minutes_scored = minutes_away
+            minutes_conceded = minutes_home
+        else:
+            minutes_scored = minutes_home + minutes_away
+            minutes_conceded = []
+
+        scored_counts = {band: 0 for band in time_bands}
+        conceded_counts = {band: 0 for band in time_bands}
+
+        for m in minutes_scored:
+            for band in time_bands:
+                low, high = map(int, band.split("-"))
+                if low <= m <= high:
+                    scored_counts[band] += 1
+                    break
+
+        for m in minutes_conceded:
+            for band in time_bands:
+                low, high = map(int, band.split("-"))
+                if low <= m <= high:
+                    conceded_counts[band] += 1
+                    break
+
+        labels.append(label)
+        chart_data.append({
+            "Label": label,
+            "Scored": [scored_counts[b] for b in time_bands],
+            "Conceded": [conceded_counts[b] for b in time_bands]
+        })
+
+    for data in chart_data:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=time_bands,
+            y=data["Scored"],
+            name='Scored',
+            marker_color='green',
+            text=[f"{v}" for v in data["Scored"]],
+            textposition='outside'
+        ))
+        fig.add_trace(go.Bar(
+            x=time_bands,
+            y=data["Conceded"],
+            name='Conceded',
+            marker_color='red',
+            text=[f"{v}" for v in data["Conceded"]],
+            textposition='outside'
+        ))
+        fig.update_layout(
+            title_text=f"Goal Time Frame - {data['Label']}",
+            barmode='stack',
+            height=400
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
 # -------------------------------
 # Statistiche per Squadre
