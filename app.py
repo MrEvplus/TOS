@@ -195,7 +195,10 @@ if menu_option == "Macro Stats per Campionato":
         AvgGoalsTotal=("goals_total", "mean"),
     ).reset_index()
 
-    group_label[cols_pct] = group_label[cols_pct].round(2)
+    # Trova eventuali colonne percentuali effettivamente presenti in group_label
+cols_pct_label = [col for col in group_label.columns if "_pct" in col or "AvgGoals" in col]
+if cols_pct_label:
+    group_label[cols_pct_label] = group_label[cols_pct_label].round(2)
 
     gb = GridOptionsBuilder.from_dataframe(group_label)
     gb.configure_default_column(filterable=True, sortable=True, resizable=True)
