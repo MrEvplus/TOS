@@ -149,15 +149,15 @@ def show_goal_patterns(df, team1, team2):
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.markdown(f"### Goal Patterns - {team1} (Home)")
+        st.markdown(f"### {team1} (Home)")
         st.markdown(html_home, unsafe_allow_html=True)
 
     with col2:
-        st.markdown(f"### Goal Patterns - {team2} (Away)")
+        st.markdown(f"### {team2} (Away)")
         st.markdown(html_away, unsafe_allow_html=True)
 
     with col3:
-        st.markdown(f"### Goal Patterns - Totale")
+        st.markdown(f"### Totale")
         st.markdown(html_total, unsafe_allow_html=True)
 
 # --------------------------------------------------------
