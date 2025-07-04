@@ -7,11 +7,25 @@ from utils import label_match, extract_minutes
 def run_team_stats(df, db_selected):
     st.header("📊 Statistiche per Squadre")
 
+    # Normalizza country e db_selected
+    df["country"] = df["country"].fillna("").astype(str).str.strip().str.upper()
+    db_selected = db_selected.strip().upper()
+
+    # Check se il campionato esiste
+    if db_selected not in df["country"].unique():
+        st.warning(f"⚠️ Il campionato selezionato '{db_selected}' non è presente nel database.")
+        st.stop()
+
     # Filtra campionato
     df_filtered = df[df["country"] == db_selected]
 
     # Trova stagioni disponibili
     seasons_available = sorted(df_filtered["Stagione"].dropna().unique().tolist(), reverse=True)
+
+    if not seasons_available:
+        st.warning(f"⚠️ Nessuna stagione disponibile nel database per il campionato {db_selected}.")
+        st.stop()
+
     st.write(f"Stagioni disponibili nel database: {seasons_available}")
 
     # Seleziona stagioni
