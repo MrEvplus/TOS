@@ -9,7 +9,7 @@ def run_team_stats(df, db_selected):
     st.header("📊 Statistiche per Squadre")
 
     # Normalizza valori
-    df["country"] = df["country"].fillna("").astype(str).strip().str.upper()
+    df["country"] = df["country"].fillna("").astype(str).str.strip().str.upper()
     db_selected = db_selected.strip().upper()
 
     if db_selected not in df["country"].unique():
