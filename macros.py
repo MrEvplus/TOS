@@ -89,8 +89,25 @@ def run_macro_stats(df, db_selected):
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
 
-    # Mostra tabella senza scroll verticale
-    st.table(grouped.style.format(precision=2))
+    if hasattr(st, "column_config"):
+        st.dataframe(
+            grouped.style.format(precision=2),
+            use_container_width=True,
+            hide_index=True,
+            height=9999,  # Grande altezza per evitare scroll verticale
+            column_config={
+                "country": st.column_config.Column(width="small", pinned="left"),
+                "Stagione": st.column_config.Column(width="small", pinned="left"),
+            }
+        )
+    else:
+        grouped_no_index = grouped.reset_index(drop=True)
+        st.dataframe(
+            grouped_no_index.style.format(precision=2),
+            use_container_width=True,
+            hide_index=True,
+            height=9999
+        )
 
     # League Data by Start Price
     df["Label"] = df.apply(label_match, axis=1)
@@ -122,16 +139,17 @@ def run_macro_stats(df, db_selected):
         st.dataframe(
             group_label.style.format(precision=2),
             use_container_width=True,
+            hide_index=True,
             column_config={
                 "Label": st.column_config.Column(width="medium", pinned="left"),
-            },
-            hide_index=True
+            }
         )
     else:
         group_label_no_index = group_label.reset_index(drop=True)
         st.dataframe(
             group_label_no_index.style.format(precision=2),
-            use_container_width=True
+            use_container_width=True,
+            hide_index=True
         )
 
     # Plotly Goal Time Frame - affiancati a 2 per riga
