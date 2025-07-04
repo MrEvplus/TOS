@@ -9,7 +9,7 @@ def run_team_stats(df, db_selected):
     st.header("📊 Statistiche per Squadre")
 
     # Normalizza valori
-    df["country"] = df["country"].fillna("").astype(str).str.strip().str.upper()
+    df["country"] = df["country"].fillna("").astype(str).strip().str.upper()
     db_selected = db_selected.strip().upper()
 
     if db_selected not in df["country"].unique():
@@ -175,8 +175,10 @@ def build_goal_pattern_html(patterns, team, color):
 
     rows = f"<tr><th>Statistica</th><th>{team}</th></tr>"
     for key, value in patterns.items():
+        # ✅ Rimuove il simbolo % solo nella colonna Statistica
+        clean_key = key.replace('%', '').strip()
         cell = str(value) if key == "P" else bar_html(value, color)
-        rows += f"<tr><td>{key}</td><td>{cell}</td></tr>"
+        rows += f"<tr><td>{clean_key}</td><td>{cell}</td></tr>"
 
     html_table = f"""
     <table style='border-collapse: collapse; width: 100%; font-size: 12px;'>
