@@ -26,14 +26,9 @@ def run_macro_stats(df, db_selected):
         st.write("Colonne presenti nel file:", list(df.columns))
         st.stop()
 
-    # Check se country o Stagione sono tutte NaN
-    if df["country"].isna().all():
-        st.warning("⚠️ La colonna 'country' è completamente vuota.")
-        st.stop()
-
-    if df["Stagione"].isna().all():
-        st.warning("⚠️ La colonna 'Stagione' è completamente vuota.")
-        st.stop()
+    # Sostituisci NaN o stringhe vuote nelle colonne usate per la groupby
+    df["country"] = df["country"].fillna("Unknown").astype(str).replace("", "Unknown")
+    df["Stagione"] = df["Stagione"].fillna("Unknown").astype(str).replace("", "Unknown")
 
     # Crea colonne mancanti se non esistono
     if "goals_total" not in df.columns:
@@ -90,9 +85,9 @@ def run_macro_stats(df, db_selected):
         if not media_row.drop(["country", "Stagione"]).isna().all():
             grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Rimuove eventuali righe tutte NaN
-    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
-    grouped = grouped[~grouped[cols_numeric].isna().all(axis=1)].reset_index(drop=True)
+    # Rimuove eventuali righe completamente vuote
+    grouped = grouped.dropna(how='all')
+    grouped = grouped[~(grouped == "").all(axis=1)]
 
     # Rinominare colonne pct -> %
     new_columns = {}
@@ -105,6 +100,7 @@ def run_macro_stats(df, db_selected):
 
     grouped.rename(columns=new_columns, inplace=True)
 
+    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
