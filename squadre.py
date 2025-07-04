@@ -1,10 +1,9 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from utils import extract_minutes
 
 # -------------------------------------------
-# Entry point
+# ENTRY POINT
 # -------------------------------------------
 def run_team_stats(df, db_selected):
     st.header("📊 Statistiche per Squadre")
@@ -58,136 +57,181 @@ def run_team_stats(df, db_selected):
 
     if team_1:
         st.subheader(f"✅ Statistiche Macro per {team_1}")
-        show_team_macro_stats(df_filtered, team_1)
+        show_team_macro_stats(df_filtered, team_1, venue="Home")
 
     if team_2 and team_2 != team_1:
         st.subheader(f"✅ Statistiche Macro per {team_2}")
-        show_team_macro_stats(df_filtered, team_2)
+        show_team_macro_stats(df_filtered, team_2, venue="Away")
 
         st.subheader(f"⚔️ Goal Patterns - {team_1} vs {team_2}")
         show_goal_patterns(df_filtered, team_1, team_2)
 
 # -------------------------------------------
-# Macro Stats
+# MACRO STATS
 # -------------------------------------------
-def show_team_macro_stats(df, team):
-    df_home = df[df["Home"] == team]
-    df_away = df[df["Away"] == team]
-
-    stats = []
-
-    for venue, data in [("Home", df_home), ("Away", df_away)]:
-        total_matches = len(data)
-
-        if total_matches > 0:
-            home_wins = sum(data["Home Goal FT"] > data["Away Goal FT"]) if venue == "Home" else sum(data["Away Goal FT"] > data["Home Goal FT"])
-            draws = sum(data["Home Goal FT"] == data["Away Goal FT"])
-            away_wins = sum(data["Away Goal FT"] > data["Home Goal FT"]) if venue == "Home" else sum(data["Home Goal FT"] > data["Away Goal FT"])
-
-            goals_for = data["Home Goal FT"].mean() if venue == "Home" else data["Away Goal FT"].mean()
-            goals_against = data["Away Goal FT"].mean() if venue == "Home" else data["Home Goal FT"].mean()
-
-            if "gg" in data.columns:
-                btts = data["gg"].mean() * 100
-            else:
-                btts = None
-
-            stats.append({
-                "Venue": venue,
-                "Matches": total_matches,
-                "Win %": round((home_wins / total_matches) * 100, 2),
-                "Draw %": round((draws / total_matches) * 100, 2),
-                "Loss %": round((away_wins / total_matches) * 100, 2),
-                "Avg Goals Scored": round(goals_for, 2),
-                "Avg Goals Conceded": round(goals_against, 2),
-                "BTTS %": round(btts, 2) if btts is not None else None
-            })
-
-    if stats:
-        df_stats = pd.DataFrame(stats)
-        st.dataframe(df_stats, use_container_width=True)
+def show_team_macro_stats(df, team, venue):
+    if venue == "Home":
+        data = df[df["Home"] == team]
+        goals_for_col = "Home Goal FT"
+        goals_against_col = "Away Goal FT"
     else:
+        data = df[df["Away"] == team]
+        goals_for_col = "Away Goal FT"
+        goals_against_col = "Home Goal FT"
+
+    total_matches = len(data)
+
+    if total_matches == 0:
         st.info("⚠️ Nessuna partita trovata per la squadra selezionata.")
-
-# -------------------------------------------
-# Goal Patterns
-# -------------------------------------------
-def show_goal_patterns(df, team1, team2):
-    matches = df[
-        ((df["Home"] == team1) & (df["Away"] == team2)) |
-        ((df["Home"] == team2) & (df["Away"] == team1))
-    ]
-
-    if matches.empty:
-        st.info("⚠️ Nessuna partita disponibile tra le due squadre selezionate.")
         return
 
-    total_matches = len(matches)
+    # Risultati
+    if venue == "Home":
+        wins = sum(data["Home Goal FT"] > data["Away Goal FT"])
+        draws = sum(data["Home Goal FT"] == data["Away Goal FT"])
+        losses = sum(data["Home Goal FT"] < data["Away Goal FT"])
+    else:
+        wins = sum(data["Away Goal FT"] > data["Home Goal FT"])
+        draws = sum(data["Away Goal FT"] == data["Home Goal FT"])
+        losses = sum(data["Away Goal FT"] < data["Home Goal FT"])
+
+    # Goals
+    goals_for = data[goals_for_col].mean()
+    goals_against = data[goals_against_col].mean()
+
+    # BTTS corretto
+    if "gg" in data.columns:
+        btts = data["gg"].sum() / total_matches * 100
+    else:
+        btts = None
+
+    stats = {
+        "Venue": venue,
+        "Matches": total_matches,
+        "Win %": round((wins / total_matches) * 100, 2),
+        "Draw %": round((draws / total_matches) * 100, 2),
+        "Loss %": round((losses / total_matches) * 100, 2),
+        "Avg Goals Scored": round(goals_for, 2),
+        "Avg Goals Conceded": round(goals_against, 2),
+        "BTTS %": round(btts, 2) if btts is not None else None
+    }
+
+    df_stats = pd.DataFrame([stats])
+    st.dataframe(df_stats, use_container_width=True)
+
+# -------------------------------------------
+# GOAL PATTERNS
+# -------------------------------------------
+def show_goal_patterns(df, team1, team2):
+    # Squadra 1 → Home
+    df_team1_home = df[df["Home"] == team1]
+    total_home_matches = len(df_team1_home)
+
+    # Squadra 2 → Away
+    df_team2_away = df[df["Away"] == team2]
+    total_away_matches = len(df_team2_away)
+
+    patterns_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
+    patterns_away = compute_goal_patterns(df_team2_away, "Away", total_away_matches)
+
+    # Costruisci tabelle
+    html_home = build_goal_pattern_html(patterns_home, team1, "green")
+    html_away = build_goal_pattern_html(patterns_away, team2, "red")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(f"### Goal Patterns - {team1} (Home)")
+        st.markdown(html_home, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"### Goal Patterns - {team2} (Away)")
+        st.markdown(html_away, unsafe_allow_html=True)
+
+# -------------------------------------------
+# COMPUTE GOAL PATTERNS
+# -------------------------------------------
+def compute_goal_patterns(df_team, venue, total_matches):
+    if total_matches == 0:
+        return {}
 
     def pct(count):
         return round((count / total_matches) * 100, 2) if total_matches > 0 else 0
 
-    # Calcoli base
-    home_wins = sum(matches["Home Goal FT"] > matches["Away Goal FT"])
-    draws = sum(matches["Home Goal FT"] == matches["Away Goal FT"])
-    away_wins = sum(matches["Home Goal FT"] < matches["Away Goal FT"])
+    # Risultati finali
+    if venue == "Home":
+        wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
+        draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
+        losses = sum(df_team["Home Goal FT"] < df_team["Away Goal FT"])
+    else:
+        wins = sum(df_team["Away Goal FT"] > df_team["Home Goal FT"])
+        draws = sum(df_team["Away Goal FT"] == df_team["Home Goal FT"])
+        losses = sum(df_team["Away Goal FT"] < df_team["Home Goal FT"])
 
-    first_home = sum(
-        (row["Home Goal FT"] > 0 and row["Home Goal FT"] > row["Away Goal FT"])
-        for _, row in matches.iterrows()
+    # First / Last Goal
+    first_goal = sum(
+        row["Home Goal FT"] > row["Away Goal FT"]
+        if venue == "Home"
+        else row["Away Goal FT"] > row["Home Goal FT"]
+        for _, row in df_team.iterrows()
     )
-    first_away = total_matches - first_home
+    last_goal = first_goal  # semplificazione se non hai minuti goal
 
-    last_home = sum(
-        (row["Home Goal FT"] > 0 and row["Home Goal FT"] >= row["Away Goal FT"])
-        for _, row in matches.iterrows()
+    # Over +/- 2 goals
+    two_up = sum(
+        abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2
+        for _, row in df_team.iterrows()
     )
-    last_away = total_matches - last_home
 
-    two_up = sum(abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2 for _, row in matches.iterrows())
+    # HT results
+    ht_wins = sum(
+        row["Home Goal 1T"] > row["Away Goal 1T"]
+        if venue == "Home"
+        else row["Away Goal 1T"] > row["Home Goal 1T"]
+        for _, row in df_team.iterrows()
+    )
+    ht_draws = sum(
+        row["Home Goal 1T"] == row["Away Goal 1T"]
+        for _, row in df_team.iterrows()
+    )
+    ht_losses = total_matches - ht_wins - ht_draws
 
-    ht_home_wins = sum(row["Home Goal 1T"] > row["Away Goal 1T"] for _, row in matches.iterrows())
-    ht_draws = sum(row["Home Goal 1T"] == row["Away Goal 1T"] for _, row in matches.iterrows())
-    ht_away_wins = sum(row["Home Goal 1T"] < row["Away Goal 1T"] for _, row in matches.iterrows())
-
-    sh_home_wins = sum(
-        (row["Home Goal FT"] - row["Home Goal 1T"]) > (row["Away Goal FT"] - row["Away Goal 1T"])
-        for _, row in matches.iterrows()
+    # SH results
+    sh_wins = sum(
+        (row["Home Goal FT"] - row["Home Goal 1T"]) >
+        (row["Away Goal FT"] - row["Away Goal 1T"])
+        if venue == "Home"
+        else (row["Away Goal FT"] - row["Away Goal 1T"]) >
+             (row["Home Goal FT"] - row["Home Goal 1T"])
+        for _, row in df_team.iterrows()
     )
     sh_draws = sum(
-        (row["Home Goal FT"] - row["Home Goal 1T"]) == (row["Away Goal FT"] - row["Away Goal 1T"])
-        for _, row in matches.iterrows()
+        (row["Home Goal FT"] - row["Home Goal 1T"]) ==
+        (row["Away Goal FT"] - row["Away Goal 1T"])
+        for _, row in df_team.iterrows()
     )
-    sh_away_wins = total_matches - sh_home_wins - sh_draws
+    sh_losses = total_matches - sh_wins - sh_draws
 
-    # Totali
-    goal_patterns = {
+    patterns = {
         "P": total_matches,
-        "H %": pct(home_wins),
-        "D %": pct(draws),
-        "A %": pct(away_wins),
-        "First Home %": pct(first_home),
-        "First Away %": pct(first_away),
-        "Last Home %": pct(last_home),
-        "Last Away %": pct(last_away),
-        "2+ %": pct(two_up),
-        "2- %": pct(two_up),  # stesso valore
-        "H 1st %": pct(ht_home_wins),
+        "Win %": pct(wins),
+        "Draw %": pct(draws),
+        "Loss %": pct(losses),
+        "First Goal %": pct(first_goal),
+        "Last Goal %": pct(last_goal),
+        "2+ Goals %": pct(two_up),
+        "H 1st %": pct(ht_wins),
         "D 1st %": pct(ht_draws),
-        "A 1st %": pct(ht_away_wins),
-        "H 2nd %": pct(sh_home_wins),
+        "A 1st %": pct(ht_losses),
+        "H 2nd %": pct(sh_wins),
         "D 2nd %": pct(sh_draws),
-        "A 2nd %": pct(sh_away_wins)
+        "A 2nd %": pct(sh_losses)
     }
-
-    # Trasforma valori in HTML con barre
-    html_table = build_goal_pattern_html(goal_patterns, team1, team2)
-    st.markdown(html_table, unsafe_allow_html=True)
+    return patterns
 
 # -------------------------------------------
-# HTML Table builder
+# BUILD HTML TABLE
 # -------------------------------------------
-def build_goal_pattern_html(patterns, team1, team2):
+def build_goal_pattern_html(patterns, team, color):
     def bar_html(value, color, width_max=80):
         width = int(width_max * (value/100))
         return f"""
@@ -197,59 +241,15 @@ def build_goal_pattern_html(patterns, team1, team2):
         </div>
         """
 
-    colors = {
-        "H %": "green",
-        "D %": "gold",
-        "A %": "red",
-        "First Home %": "green",
-        "First Away %": "red",
-        "Last Home %": "green",
-        "Last Away %": "red",
-        "2+ %": "blue",
-        "2- %": "orange",
-        "H 1st %": "green",
-        "D 1st %": "gold",
-        "A 1st %": "red",
-        "H 2nd %": "green",
-        "D 2nd %": "gold",
-        "A 2nd %": "red"
-    }
-
-    rows = ""
-    rows += f"<tr><th> </th>" + "".join(f"<th>{key}</th>" for key in patterns.keys()) + "</tr>"
-
-    # Squadra Home
-    row_home = f"<tr><td>{team1}</td>"
+    rows = f"<tr><th>Statistica</th><th>{team}</th></tr>"
     for key, value in patterns.items():
-        color = colors.get(key, "lightgray")
-        cell = bar_html(value, color) if key != "P" else str(value)
-        row_home += f"<td>{cell}</td>"
-    row_home += "</tr>"
+        cell = str(value) if key == "P" else bar_html(value, color)
+        rows += f"<tr><td>{key}</td><td>{cell}</td></tr>"
 
-    # Squadra Away
-    row_away = f"<tr><td>{team2}</td>"
-    for key, value in patterns.items():
-        color = colors.get(key, "lightgray")
-        cell = bar_html(value, color) if key != "P" else str(value)
-        row_away += f"<td>{cell}</td>"
-    row_away += "</tr>"
-
-    # Totale
-    row_total = f"<tr style='font-weight:bold;'><td>Totale</td>"
-    for key, value in patterns.items():
-        color = colors.get(key, "lightgray")
-        cell = bar_html(value, color) if key != "P" else str(value)
-        row_total += f"<td>{cell}</td>"
-    row_total += "</tr>"
-
-    table_html = f"""
+    html_table = f"""
     <table style='border-collapse: collapse; width: 100%; font-size: 12px;'>
         {rows}
-        {row_home}
-        {row_away}
-        {row_total}
     </table>
     """
 
-    return table_html
-
+    return html_table
