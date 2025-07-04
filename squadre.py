@@ -79,10 +79,17 @@ def show_team_macro_stats(df, team, venue):
         goals_for_col = "Away Goal FT"
         goals_against_col = "Home Goal FT"
 
+    # ✅ Filtra solo match disputati
+    mask_played = (
+        ~data["Home Goal FT"].isna() &
+        ~data["Away Goal FT"].isna()
+    )
+    data = data[mask_played]
+
     total_matches = len(data)
 
     if total_matches == 0:
-        st.info("⚠️ Nessuna partita trovata per la squadra selezionata.")
+        st.info("⚠️ Nessuna partita disputata trovata per la squadra selezionata.")
         return
 
     if venue == "Home":
@@ -97,7 +104,7 @@ def show_team_macro_stats(df, team, venue):
     goals_for = data[goals_for_col].mean()
     goals_against = data[goals_against_col].mean()
 
-    # ✅ BTTS corretto
+    # ✅ BTTS calcolo corretto solo sui match giocati
     btts_count = sum(
         (row["Home Goal FT"] > 0) and (row["Away Goal FT"] > 0)
         for _, row in data.iterrows()
@@ -116,8 +123,6 @@ def show_team_macro_stats(df, team, venue):
     }
 
     df_stats = pd.DataFrame([stats])
-
-    # ✅ Nasconde la colonna indice
     st.dataframe(df_stats.set_index("Venue"), use_container_width=True)
 
 # --------------------------------------------------------
@@ -125,9 +130,22 @@ def show_team_macro_stats(df, team, venue):
 # --------------------------------------------------------
 def show_goal_patterns(df, team1, team2):
     df_team1_home = df[df["Home"] == team1]
-    total_home_matches = len(df_team1_home)
-
     df_team2_away = df[df["Away"] == team2]
+
+    # ✅ Filtra solo partite disputate
+    mask_played_home = (
+        ~df_team1_home["Home Goal FT"].isna() &
+        ~df_team1_home["Away Goal FT"].isna()
+    )
+    df_team1_home = df_team1_home[mask_played_home]
+
+    mask_played_away = (
+        ~df_team2_away["Home Goal FT"].isna() &
+        ~df_team2_away["Away Goal FT"].isna()
+    )
+    df_team2_away = df_team2_away[mask_played_away]
+
+    total_home_matches = len(df_team1_home)
     total_away_matches = len(df_team2_away)
 
     patterns_home, tf_scored_home, tf_conceded_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
