@@ -377,3 +377,29 @@ def goal_pattern_keys():
     for start, end in timeframes():
         keys.append(f"{start}-{end} Goals %")
     return keys
+
+# ⬇️ INCOLLA QUI SOTTO QUESTO BLOCCO:
+def build_timeline(row, venue):
+    try:
+        h_goals = parse_goal_times(row.get("minuti goal segnato home", ""))
+        a_goals = parse_goal_times(row.get("minuti goal segnato away", ""))
+        timeline = []
+
+        for m in h_goals:
+            timeline.append(("H", m))
+        for m in a_goals:
+            timeline.append(("A", m))
+
+        timeline.sort(key=lambda x: x[1])
+        return timeline
+    except:
+        return []
+
+def parse_goal_times(val):
+    if pd.isna(val) or val == "":
+        return []
+    times = []
+    for part in str(val).strip().split(";"):
+        if part.strip().isdigit():
+            times.append(int(part.strip()))
+    return times
