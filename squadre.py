@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import altair as alt
+from datetime import datetime
 
 # --------------------------------------------------------
 # ENTRY POINT
@@ -79,11 +80,7 @@ def show_team_macro_stats(df, team, venue):
         goals_for_col = "Away Goal FT"
         goals_against_col = "Home Goal FT"
 
-    # ✅ Filtra solo match disputati
-    mask_played = (
-        (data["Home Goal FT"] > 0) |
-        (data["Away Goal FT"] > 0)
-    )
+    mask_played = data.apply(is_match_played, axis=1)
     data = data[mask_played]
 
     total_matches = len(data)
@@ -104,7 +101,6 @@ def show_team_macro_stats(df, team, venue):
     goals_for = data[goals_for_col].mean()
     goals_against = data[goals_against_col].mean()
 
-    # ✅ BTTS calcolo corretto solo sui match giocati
     btts_count = sum(
         (row["Home Goal FT"] > 0) and (row["Away Goal FT"] > 0)
         for _, row in data.iterrows()
@@ -132,17 +128,10 @@ def show_goal_patterns(df, team1, team2):
     df_team1_home = df[df["Home"] == team1]
     df_team2_away = df[df["Away"] == team2]
 
-    # ✅ Filtra solo partite disputate
-    mask_played_home = (
-        (df_team1_home["Home Goal FT"] > 0) |
-        (df_team1_home["Away Goal FT"] > 0)
-    )
+    mask_played_home = df_team1_home.apply(is_match_played, axis=1)
     df_team1_home = df_team1_home[mask_played_home]
 
-    mask_played_away = (
-        (df_team2_away["Home Goal FT"] > 0) |
-        (df_team2_away["Away Goal FT"] > 0)
-    )
+    mask_played_away = df_team2_away.apply(is_match_played, axis=1)
     df_team2_away = df_team2_away[mask_played_away]
 
     total_home_matches = len(df_team1_home)
@@ -174,18 +163,50 @@ def show_goal_patterns(df, team1, team2):
         st.markdown(f"### Totale")
         st.markdown(html_total, unsafe_allow_html=True)
 
-    # Grafico Home
     st.markdown(f"### Distribuzione Goal Time Frame - {team1} (Home)")
     chart_home = plot_timeframe_goals(tf_scored_home, tf_conceded_home, team1)
     st.altair_chart(chart_home, use_container_width=True)
 
-    # Grafico Away
     st.markdown(f"### Distribuzione Goal Time Frame - {team2} (Away)")
     chart_away = plot_timeframe_goals(tf_scored_away, tf_conceded_away, team2)
     st.altair_chart(chart_away, use_container_width=True)
 
 # --------------------------------------------------------
-# BUILD SINGLE TABLE
+# LOGICA PER MATCH GIOCATO
+# --------------------------------------------------------
+def is_match_played(row):
+    goals_sum = row["Home Goal FT"] + row["Away Goal FT"]
+
+    if goals_sum > 0:
+        return True
+
+    if (pd.notna(row["minuti goal segnato home"]) and row["minuti goal segnato home"].strip() != ""):
+        return True
+    if (pd.notna(row["minuti goal segnato away"]) and row["minuti goal segnato away"].strip() != ""):
+        return True
+
+    dt_match = parse_datetime_excel(row)
+    if dt_match and dt_match < datetime.now():
+        return True
+
+    return False
+
+def parse_datetime_excel(row):
+    try:
+        data_str = str(row["Data"]).strip()
+        ora_str = str(row["Orario"]).zfill(4)
+
+        giorno, mese, anno = map(int, data_str.split("/"))
+        ora = int(ora_str[:2])
+        minuto = int(ora_str[2:])
+
+        dt = datetime(anno, mese, giorno, ora, minuto)
+        return dt
+    except:
+        return None
+
+# --------------------------------------------------------
+# BUILD HTML TABLE
 # --------------------------------------------------------
 def build_goal_pattern_html(patterns, team, color):
     def bar_html(value, color, width_max=80):
@@ -417,26 +438,13 @@ def compute_goal_patterns(df_team, venue, total_matches):
 # --------------------------------------------------------
 # TOTALS
 # --------------------------------------------------------
-def compute_goal_patterns_total(
-    patterns_home, patterns_away,
-    total_home_matches, total_away_matches
-):
+def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches, total_away_matches):
     total_matches = total_home_matches + total_away_matches
-
     total_patterns = {}
 
-    # Speciale calcolo per Win, Draw, Loss
-    win_total = (
-        patterns_home["Win %"] + patterns_away["Loss %"]
-    ) / 2
-
-    draw_total = (
-        patterns_home["Draw %"] + patterns_away["Draw %"]
-    ) / 2
-
-    loss_total = (
-        patterns_home["Loss %"] + patterns_away["Win %"]
-    ) / 2
+    win_total = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
+    draw_total = (patterns_home["Draw %"] + patterns_away["Draw %"]) / 2
+    loss_total = (patterns_home["Loss %"] + patterns_away["Win %"]) / 2
 
     total_patterns["P"] = total_matches
     total_patterns["Win %"] = round(win_total, 2)
@@ -449,8 +457,7 @@ def compute_goal_patterns_total(
         home_val = patterns_home[key]
         away_val = patterns_away[key]
         val = (
-            (home_val * total_home_matches)
-            + (away_val * total_away_matches)
+            (home_val * total_home_matches) + (away_val * total_away_matches)
         ) / total_matches if total_matches > 0 else 0
         total_patterns[key] = round(val, 2)
 
@@ -470,7 +477,7 @@ def timeframes():
     ]
 
 # --------------------------------------------------------
-# BUILD TIMELINE
+# TIMELINE
 # --------------------------------------------------------
 def build_timeline(row, venue):
     try:
