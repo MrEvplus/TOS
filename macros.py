@@ -7,7 +7,12 @@ from utils import label_match, extract_minutes
 def run_macro_stats(df, db_selected):
     st.title(f"Macro Stats per Campionato - {db_selected}")
 
-    # Controllo colonne minime
+    # Check se il DataFrame è vuoto
+    if df.empty:
+        st.warning("⚠️ Il file caricato è vuoto o non contiene righe.")
+        st.stop()
+
+    # Check colonne essenziali presenti
     required_cols = [
         "Home", "Away",
         "Home Goal FT", "Away Goal FT",
@@ -19,6 +24,15 @@ def run_macro_stats(df, db_selected):
     if missing_cols:
         st.error(f"⚠️ Mancano colonne essenziali nel database: {missing_cols}")
         st.write("Colonne presenti nel file:", list(df.columns))
+        st.stop()
+
+    # Check se country o Stagione sono tutte NaN
+    if df["country"].isna().all():
+        st.warning("⚠️ La colonna 'country' è completamente vuota.")
+        st.stop()
+
+    if df["Stagione"].isna().all():
+        st.warning("⚠️ La colonna 'Stagione' è completamente vuota.")
         st.stop()
 
     # Crea colonne mancanti se non esistono
