@@ -73,11 +73,10 @@ def run_macro_stats(df, db_selected):
         media_row["Stagione"] = "Totale"
         media_row["Matches"] = grouped["Matches"].sum()
 
-        # Aggiungi solo se almeno un valore numerico esiste
         if not media_row.drop(["country", "Stagione"]).isna().all():
             grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-    # Rimuove eventuali righe tutte NaN (es. righe vuote)
+    # Rimuove eventuali righe tutte NaN
     cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped = grouped[~grouped[cols_numeric].isna().all(axis=1)].reset_index(drop=True)
 
@@ -101,7 +100,6 @@ def run_macro_stats(df, db_selected):
             grouped.style.format(precision=2),
             use_container_width=True,
             hide_index=True,
-            height=9999,
             column_config={
                 "country": st.column_config.Column(width="small", pinned="left"),
                 "Stagione": st.column_config.Column(width="small", pinned="left"),
@@ -112,8 +110,7 @@ def run_macro_stats(df, db_selected):
         st.dataframe(
             grouped_no_index.style.format(precision=2),
             use_container_width=True,
-            hide_index=True,
-            height=9999
+            hide_index=True
         )
 
     # League Data by Start Price
