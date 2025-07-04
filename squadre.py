@@ -142,22 +142,16 @@ def show_goal_patterns(df, team1, team2):
             val = (patterns_home[key] * total_home_matches + patterns_away[key] * total_away_matches) / total_matches if total_matches > 0 else 0
             patterns_total[key] = round(val, 2)
 
-    # Mostra tabelle
-    html_home = build_goal_pattern_html(patterns_home, team1, "green")
-    html_away = build_goal_pattern_html(patterns_away, team2, "red")
-    html_total = build_goal_pattern_html(patterns_total, "Totale", "blue")
+    # Costruisci tabella unica
+    html = build_full_html_table(
+        patterns_home,
+        patterns_away,
+        patterns_total,
+        team1,
+        team2
+    )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown(f"### Goal Patterns - {team1} (Home)")
-        st.markdown(html_home, unsafe_allow_html=True)
-
-    with col2:
-        st.markdown(f"### Goal Patterns - {team2} (Away)")
-        st.markdown(html_away, unsafe_allow_html=True)
-
-    st.markdown(f"### Goal Patterns - Totale")
-    st.markdown(html_total, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 # --------------------------------------------------------
 # COMPUTE GOAL PATTERNS
@@ -169,7 +163,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
     def pct(count):
         return round((count / total_matches) * 100, 2) if total_matches > 0 else 0
 
-    # Risultati finali
     if venue == "Home":
         wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
         draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
@@ -179,7 +172,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
         draws = sum(df_team["Away Goal FT"] == df_team["Home Goal FT"])
         losses = sum(df_team["Away Goal FT"] < df_team["Home Goal FT"])
 
-    # First / Last Goal
     first_goal = 0
     last_goal = 0
     one_zero = 0
@@ -194,19 +186,16 @@ def compute_goal_patterns(df_team, venue, total_matches):
         if not timeline:
             continue
 
-        # First Goal
         if timeline[0][0] == "H" and venue == "Home":
             first_goal += 1
         elif timeline[0][0] == "A" and venue == "Away":
             first_goal += 1
 
-        # Last Goal
         if timeline[-1][0] == "H" and venue == "Home":
             last_goal += 1
         elif timeline[-1][0] == "A" and venue == "Away":
             last_goal += 1
 
-        # Partial patterns
         current_score = [0, 0]
         seen_1_0 = False
         seen_0_1 = False
@@ -217,43 +206,35 @@ def compute_goal_patterns(df_team, venue, total_matches):
             else:
                 current_score[1] += 1
 
-            # Check 1-0
             if current_score == [1, 0] and not seen_1_0:
                 one_zero += 1
                 seen_1_0 = True
 
-            # Check 1-1 after 1-0
             if seen_1_0 and current_score == [1, 1]:
                 one_one_after_one_zero += 1
-                seen_1_0 = False  # count only once per match
+                seen_1_0 = False
 
-            # Check 2-0 after 1-0
             if seen_1_0 and current_score == [2, 0]:
                 two_zero_after_one_zero += 1
                 seen_1_0 = False
 
-            # Check 0-1
             if current_score == [0, 1] and not seen_0_1:
                 zero_one += 1
                 seen_0_1 = True
 
-            # Check 1-1 after 0-1
             if seen_0_1 and current_score == [1, 1]:
                 one_one_after_zero_one += 1
                 seen_0_1 = False
 
-            # Check 0-2 after 0-1
             if seen_0_1 and current_score == [0, 2]:
                 zero_two_after_zero_one += 1
                 seen_0_1 = False
 
-    # Over +/- 2 goals
     two_up = sum(
         abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2
         for _, row in df_team.iterrows()
     )
 
-    # HT results
     ht_wins = sum(
         row["Home Goal 1T"] > row["Away Goal 1T"]
         if venue == "Home"
@@ -266,7 +247,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
     )
     ht_losses = total_matches - ht_wins - ht_draws
 
-    # SH results
     sh_wins = sum(
         (row["Home Goal FT"] - row["Home Goal 1T"]) >
         (row["Away Goal FT"] - row["Away Goal 1T"])
@@ -334,27 +314,55 @@ def parse_goal_times(val):
     return times
 
 # --------------------------------------------------------
-# BUILD HTML TABLE
+# BUILD FULL HTML TABLE
 # --------------------------------------------------------
-def build_goal_pattern_html(patterns, team, color):
-    def bar_html(value, color, width_max=80):
-        width = int(width_max * (value/100))
+def build_full_html_table(pat_home, pat_away, pat_total, team1, team2):
+    def bar_cell(value, color, width_max=80):
+        width = int(width_max * (value / 100))
         return f"""
-        <div style='display: flex; align-items: center;'>
-            <div style='height: 10px; width: {width}px; background-color: {color}; margin-right: 5px;'></div>
-            <span style='font-size: 12px;'>{value:.1f}%</span>
-        </div>
+            <div style='display: flex; align-items: center;'>
+                <div style='height: 10px; width: {width}px; background-color: {color}; margin-right: 5px;'></div>
+                <span style='font-size: 12px;'>{value:.1f}%</span>
+            </div>
         """
 
-    rows = f"<tr><th>Statistica</th><th>{team}</th></tr>"
-    for key, value in patterns.items():
-        cell = str(value) if key == "P" else bar_html(value, color)
-        rows += f"<tr><td>{key}</td><td>{cell}</td></tr>"
+    rows = ""
+    for stat in pat_home.keys():
+        val_home = pat_home[stat]
+        val_away = pat_away[stat]
+        val_total = pat_total[stat]
 
-    html_table = f"""
-    <table style='border-collapse: collapse; width: 100%; font-size: 12px;'>
-        {rows}
-    </table>
+        if stat == "P":
+            cell_home = str(val_home)
+            cell_away = str(val_away)
+            cell_total = str(val_total)
+        else:
+            cell_home = bar_cell(val_home, "green")
+            cell_away = bar_cell(val_away, "red")
+            cell_total = bar_cell(val_total, "blue")
+
+        rows += f"""
+            <tr>
+                <td>{stat}</td>
+                <td>{cell_home}</td>
+                <td>{cell_away}</td>
+                <td>{cell_total}</td>
+            </tr>
+        """
+
+    table_html = f"""
+        <table style='border-collapse: collapse; width: 100%; font-size: 12px;'>
+            <thead>
+                <tr style='background-color: #f2f2f2;'>
+                    <th>Statistica</th>
+                    <th>{team1}</th>
+                    <th>{team2}</th>
+                    <th>Totale</th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows}
+            </tbody>
+        </table>
     """
-
-    return html_table
+    return table_html
