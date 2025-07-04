@@ -81,8 +81,8 @@ def show_team_macro_stats(df, team, venue):
 
     # ✅ Filtra solo match disputati
     mask_played = (
-        ~data["Home Goal FT"].isna() &
-        ~data["Away Goal FT"].isna()
+        (data["Home Goal FT"] > 0) |
+        (data["Away Goal FT"] > 0)
     )
     data = data[mask_played]
 
@@ -134,14 +134,14 @@ def show_goal_patterns(df, team1, team2):
 
     # ✅ Filtra solo partite disputate
     mask_played_home = (
-        ~df_team1_home["Home Goal FT"].isna() &
-        ~df_team1_home["Away Goal FT"].isna()
+        (df_team1_home["Home Goal FT"] > 0) |
+        (df_team1_home["Away Goal FT"] > 0)
     )
     df_team1_home = df_team1_home[mask_played_home]
 
     mask_played_away = (
-        ~df_team2_away["Home Goal FT"].isna() &
-        ~df_team2_away["Away Goal FT"].isna()
+        (df_team2_away["Home Goal FT"] > 0) |
+        (df_team2_away["Away Goal FT"] > 0)
     )
     df_team2_away = df_team2_away[mask_played_away]
 
@@ -151,7 +151,6 @@ def show_goal_patterns(df, team1, team2):
     patterns_home, tf_scored_home, tf_conceded_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
     patterns_away, tf_scored_away, tf_conceded_away = compute_goal_patterns(df_team2_away, "Away", total_away_matches)
 
-    # ✅ calcolo Totali
     patterns_total = compute_goal_patterns_total(
         patterns_home, patterns_away,
         total_home_matches, total_away_matches
@@ -282,60 +281,73 @@ def compute_goal_patterns(df_team, venue, total_matches):
         if not timeline:
             continue
 
-        for team_, minute in timeline:
+        score_home = 0
+        score_away = 0
+        one_zero_found = False
+        zero_one_found = False
+        checked_one_one_after_one_zero = False
+        checked_two_zero_after_one_zero = False
+        checked_one_one_after_zero_one = False
+        checked_zero_two_after_zero_one = False
+
+        for team_char, minute in timeline:
+            if team_char == "H":
+                score_home += 1
+            else:
+                score_away += 1
+
             for start, end in timeframes():
                 if start < minute <= end:
                     if venue == "Home":
-                        if team_ == "H":
+                        if team_char == "H":
                             tf_scored[f"{start}-{end}"] += 1
                         else:
                             tf_conceded[f"{start}-{end}"] += 1
                     else:
-                        if team_ == "A":
+                        if team_char == "A":
                             tf_scored[f"{start}-{end}"] += 1
                         else:
                             tf_conceded[f"{start}-{end}"] += 1
 
-        if timeline:
-            if timeline[0][0] == "H" and venue == "Home":
-                first_goal += 1
-            elif timeline[0][0] == "A" and venue == "Away":
-                first_goal += 1
-
-            if timeline[-1][0] == "H" and venue == "Home":
-                last_goal += 1
-            elif timeline[-1][0] == "A" and venue == "Away":
-                last_goal += 1
-
-            current_score = [0, 0]
-            seen_1_0 = False
-            seen_0_1 = False
-
-            for team_, _ in timeline:
-                if team_ == "H":
-                    current_score[0] += 1
-                else:
-                    current_score[1] += 1
-
-                if current_score == [1, 0] and not seen_1_0:
+            # 1-0
+            if not one_zero_found and score_home == 1 and score_away == 0:
+                if venue == "Home":
                     one_zero += 1
-                    seen_1_0 = True
-                if seen_1_0 and current_score == [1, 1]:
-                    one_one_after_one_zero += 1
-                    seen_1_0 = False
-                if seen_1_0 and current_score == [2, 0]:
-                    two_zero_after_one_zero += 1
-                    seen_1_0 = False
+                one_zero_found = True
 
-                if current_score == [0, 1] and not seen_0_1:
+            # 1-1 after 1-0
+            if one_zero_found and not checked_one_one_after_one_zero:
+                if score_home == 1 and score_away == 1:
+                    if venue == "Home":
+                        one_one_after_one_zero += 1
+                    checked_one_one_after_one_zero = True
+
+            # 2-0 after 1-0
+            if one_zero_found and not checked_two_zero_after_one_zero:
+                if score_home == 2 and score_away == 0:
+                    if venue == "Home":
+                        two_zero_after_one_zero += 1
+                    checked_two_zero_after_one_zero = True
+
+            # 0-1
+            if not zero_one_found and score_home == 0 and score_away == 1:
+                if venue == "Home":
                     zero_one += 1
-                    seen_0_1 = True
-                if seen_0_1 and current_score == [1, 1]:
-                    one_one_after_zero_one += 1
-                    seen_0_1 = False
-                if seen_0_1 and current_score == [0, 2]:
-                    zero_two_after_zero_one += 1
-                    seen_0_1 = False
+                zero_one_found = True
+
+            # 1-1 after 0-1
+            if zero_one_found and not checked_one_one_after_zero_one:
+                if score_home == 1 and score_away == 1:
+                    if venue == "Home":
+                        one_one_after_zero_one += 1
+                    checked_one_one_after_zero_one = True
+
+            # 0-2 after 0-1
+            if zero_one_found and not checked_zero_two_after_zero_one:
+                if score_home == 0 and score_away == 2:
+                    if venue == "Home":
+                        zero_two_after_zero_one += 1
+                    checked_zero_two_after_zero_one = True
 
     two_up = sum(
         abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2
@@ -431,7 +443,6 @@ def compute_goal_patterns_total(
     total_patterns["Draw %"] = round(draw_total, 2)
     total_patterns["Loss %"] = round(loss_total, 2)
 
-    # tutti gli altri pattern
     for key in patterns_home.keys():
         if key in ["P", "Win %", "Draw %", "Loss %"]:
             continue
