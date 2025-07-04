@@ -142,16 +142,48 @@ def show_goal_patterns(df, team1, team2):
             val = (patterns_home[key] * total_home_matches + patterns_away[key] * total_away_matches) / total_matches if total_matches > 0 else 0
             patterns_total[key] = round(val, 2)
 
-    # ✅ COSTRUISCI TABELLA UNICA
-    html = build_full_html_table(
-        patterns_home,
-        patterns_away,
-        patterns_total,
-        team1,
-        team2
-    )
+    html_home = build_goal_pattern_html(patterns_home, team1, "green")
+    html_away = build_goal_pattern_html(patterns_away, team2, "red")
+    html_total = build_goal_pattern_html(patterns_total, "Totale", "blue")
 
-    st.markdown(html, unsafe_allow_html=True)
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown(f"### Goal Patterns - {team1} (Home)")
+        st.markdown(html_home, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"### Goal Patterns - {team2} (Away)")
+        st.markdown(html_away, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown(f"### Goal Patterns - Totale")
+        st.markdown(html_total, unsafe_allow_html=True)
+
+# --------------------------------------------------------
+# BUILD SINGLE TABLE
+# --------------------------------------------------------
+def build_goal_pattern_html(patterns, team, color):
+    def bar_html(value, color, width_max=80):
+        width = int(width_max * (value/100))
+        return f"""
+        <div style='display: flex; align-items: center;'>
+            <div style='height: 10px; width: {width}px; background-color: {color}; margin-right: 5px;'></div>
+            <span style='font-size: 12px;'>{value:.1f}%</span>
+        </div>
+        """
+
+    rows = f"<tr><th>Statistica</th><th>{team}</th></tr>"
+    for key, value in patterns.items():
+        cell = str(value) if key == "P" else bar_html(value, color)
+        rows += f"<tr><td>{key}</td><td>{cell}</td></tr>"
+
+    html_table = f"""
+    <table style='border-collapse: collapse; width: 100%; font-size: 12px;'>
+        {rows}
+    </table>
+    """
+    return html_table
 
 # --------------------------------------------------------
 # COMPUTE GOAL PATTERNS
@@ -312,60 +344,6 @@ def parse_goal_times(val):
         if part.strip().isdigit():
             times.append(int(part.strip()))
     return times
-
-# --------------------------------------------------------
-# BUILD FULL HTML TABLE
-# --------------------------------------------------------
-def build_full_html_table(pat_home, pat_away, pat_total, team1, team2):
-    def bar_cell(value, color, width_max=80):
-        width = int(width_max * (value / 100))
-        return f"""
-            <div style='display: flex; align-items: center;'>
-                <div style='height: 10px; width: {width}px; background-color: {color}; margin-right: 5px;'></div>
-                <span style='font-size: 12px;'>{value:.1f}%</span>
-            </div>
-        """
-
-    rows = ""
-    for stat in pat_home.keys():
-        val_home = pat_home[stat]
-        val_away = pat_away[stat]
-        val_total = pat_total[stat]
-
-        if stat == "P":
-            cell_home = str(val_home)
-            cell_away = str(val_away)
-            cell_total = str(val_total)
-        else:
-            cell_home = bar_cell(val_home, "green")
-            cell_away = bar_cell(val_away, "red")
-            cell_total = bar_cell(val_total, "blue")
-
-        rows += f"""
-            <tr>
-                <td>{stat}</td>
-                <td>{cell_home}</td>
-                <td>{cell_away}</td>
-                <td>{cell_total}</td>
-            </tr>
-        """
-
-    table_html = f"""
-        <table style='border-collapse: collapse; width: 100%; font-size: 12px;'>
-            <thead>
-                <tr style='background-color: #f2f2f2;'>
-                    <th>Statistica</th>
-                    <th>{team1}</th>
-                    <th>{team2}</th>
-                    <th>Totale</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rows}
-            </tbody>
-        </table>
-    """
-    return table_html
 
 # --------------------------------------------------------
 # KEYS LIST
