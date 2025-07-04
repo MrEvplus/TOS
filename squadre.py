@@ -97,10 +97,12 @@ def show_team_macro_stats(df, team, venue):
     goals_for = data[goals_for_col].mean()
     goals_against = data[goals_against_col].mean()
 
-    if "gg" in data.columns:
-        btts = data["gg"].sum() / total_matches * 100
-    else:
-        btts = None
+    # ✅ BTTS corretto
+    btts_count = sum(
+        (row["Home Goal FT"] > 0) and (row["Away Goal FT"] > 0)
+        for _, row in data.iterrows()
+    )
+    btts = (btts_count / total_matches) * 100 if total_matches > 0 else 0
 
     stats = {
         "Venue": venue,
@@ -110,32 +112,38 @@ def show_team_macro_stats(df, team, venue):
         "Loss %": round((losses / total_matches) * 100, 2),
         "Avg Goals Scored": round(goals_for, 2),
         "Avg Goals Conceded": round(goals_against, 2),
-        "BTTS %": round(btts, 2) if btts is not None else None
+        "BTTS %": round(btts, 2)
     }
 
     df_stats = pd.DataFrame([stats])
-    st.dataframe(df_stats, use_container_width=True)
+
+    # ✅ Nasconde la colonna indice
+    st.dataframe(df_stats.set_index("Venue"), use_container_width=True)
 
 # --------------------------------------------------------
 # GOAL PATTERNS
 # --------------------------------------------------------
 def show_goal_patterns(df, team1, team2):
-    # Home team
     df_team1_home = df[df["Home"] == team1]
     total_home_matches = len(df_team1_home)
 
-    # Away team
     df_team2_away = df[df["Away"] == team2]
     total_away_matches = len(df_team2_away)
 
     patterns_home, tf_scored_home, tf_conceded_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
     patterns_away, tf_scored_away, tf_conceded_away = compute_goal_patterns(df_team2_away, "Away", total_away_matches)
 
-    # Render HTML tables
+    # ✅ calcolo Totali
+    patterns_total = compute_goal_patterns_total(
+        patterns_home, patterns_away,
+        total_home_matches, total_away_matches
+    )
+
     html_home = build_goal_pattern_html(patterns_home, team1, "green")
     html_away = build_goal_pattern_html(patterns_away, team2, "red")
+    html_total = build_goal_pattern_html(patterns_total, "Totale", "blue")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown(f"### {team1} (Home)")
@@ -145,12 +153,16 @@ def show_goal_patterns(df, team1, team2):
         st.markdown(f"### {team2} (Away)")
         st.markdown(html_away, unsafe_allow_html=True)
 
-    # Plot Home
+    with col3:
+        st.markdown(f"### Totale")
+        st.markdown(html_total, unsafe_allow_html=True)
+
+    # Grafico Home
     st.markdown(f"### Distribuzione Goal Time Frame - {team1} (Home)")
     chart_home = plot_timeframe_goals(tf_scored_home, tf_conceded_home, team1)
     st.altair_chart(chart_home, use_container_width=True)
 
-    # Plot Away
+    # Grafico Away
     st.markdown(f"### Distribuzione Goal Time Frame - {team2} (Away)")
     chart_away = plot_timeframe_goals(tf_scored_away, tf_conceded_away, team2)
     st.altair_chart(chart_away, use_container_width=True)
@@ -371,6 +383,49 @@ def compute_goal_patterns(df_team, venue, total_matches):
     }
 
     return patterns, tf_scored_pct, tf_conceded_pct
+
+# --------------------------------------------------------
+# TOTALS
+# --------------------------------------------------------
+def compute_goal_patterns_total(
+    patterns_home, patterns_away,
+    total_home_matches, total_away_matches
+):
+    total_matches = total_home_matches + total_away_matches
+
+    total_patterns = {}
+
+    # Speciale calcolo per Win, Draw, Loss
+    win_total = (
+        patterns_home["Win %"] + patterns_away["Loss %"]
+    ) / 2
+
+    draw_total = (
+        patterns_home["Draw %"] + patterns_away["Draw %"]
+    ) / 2
+
+    loss_total = (
+        patterns_home["Loss %"] + patterns_away["Win %"]
+    ) / 2
+
+    total_patterns["P"] = total_matches
+    total_patterns["Win %"] = round(win_total, 2)
+    total_patterns["Draw %"] = round(draw_total, 2)
+    total_patterns["Loss %"] = round(loss_total, 2)
+
+    # tutti gli altri pattern
+    for key in patterns_home.keys():
+        if key in ["P", "Win %", "Draw %", "Loss %"]:
+            continue
+        home_val = patterns_home[key]
+        away_val = patterns_away[key]
+        val = (
+            (home_val * total_home_matches)
+            + (away_val * total_away_matches)
+        ) / total_matches if total_matches > 0 else 0
+        total_patterns[key] = round(val, 2)
+
+    return total_patterns
 
 # --------------------------------------------------------
 # TIMEFRAMES
