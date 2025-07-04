@@ -142,7 +142,7 @@ def show_goal_patterns(df, team1, team2):
             val = (patterns_home[key] * total_home_matches + patterns_away[key] * total_away_matches) / total_matches if total_matches > 0 else 0
             patterns_total[key] = round(val, 2)
 
-    # Costruisci tabella unica
+    # ✅ COSTRUISCI TABELLA UNICA
     html = build_full_html_table(
         patterns_home,
         patterns_away,
