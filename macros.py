@@ -89,22 +89,8 @@ def run_macro_stats(df, db_selected):
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
 
-    if hasattr(st, "column_config"):
-        st.dataframe(
-            grouped.style.format(precision=2),
-            use_container_width=True,
-            column_config={
-                "country": st.column_config.Column(width="small", pinned="left"),
-                "Stagione": st.column_config.Column(width="small", pinned="left"),
-            },
-            hide_index=True
-        )
-    else:
-        grouped_no_index = grouped.reset_index(drop=True)
-        st.dataframe(
-            grouped_no_index.style.format(precision=2),
-            use_container_width=True
-        )
+    # Mostra tabella senza scroll verticale
+    st.table(grouped.style.format(precision=2))
 
     # League Data by Start Price
     df["Label"] = df.apply(label_match, axis=1)
