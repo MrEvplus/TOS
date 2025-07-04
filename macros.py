@@ -67,14 +67,20 @@ def run_macro_stats(df, db_selected):
         BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
+    # Calcola media solo se grouped non è vuoto
     if not grouped.empty:
         media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
         media_row["country"] = grouped["country"].iloc[0]
         media_row["Stagione"] = "Totale"
         media_row["Matches"] = grouped["Matches"].sum()
 
+        # Aggiungi solo se almeno un valore numerico è presente
         if not media_row.drop(["country", "Stagione"]).isna().all():
             grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+
+    # Rimuove eventuali righe tutte NaN
+    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
+    grouped = grouped[~grouped[cols_numeric].isna().all(axis=1)].reset_index(drop=True)
 
     # Rinominare colonne sostituendo pct -> %
     new_columns = {}
@@ -87,7 +93,6 @@ def run_macro_stats(df, db_selected):
 
     grouped.rename(columns=new_columns, inplace=True)
 
-    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
