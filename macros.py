@@ -148,92 +148,100 @@ def run_macro_stats(df, db_selected):
             use_container_width=True
         )
 
-    # Plotly Goal Time Frame - in percentuale con hover dettagliato
+    # Plotly Goal Time Frame - affiancati a 2 per riga
     st.subheader(f"✅ Distribuzione Goal Time Frame % per Label - {db_selected}")
 
     time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
 
-    for label in df["Label"].dropna().unique():
-        sub_df = df[df["Label"] == label]
-        minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-        minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+    labels = list(df["Label"].dropna().unique())
 
-        if label.startswith("H_"):
-            minutes_scored = minutes_home
-            minutes_conceded = minutes_away
-        elif label.startswith("A_"):
-            minutes_scored = minutes_away
-            minutes_conceded = minutes_home
-        else:
-            minutes_scored = minutes_home + minutes_away
-            minutes_conceded = []
+    for i in range(0, len(labels), 2):
+        cols = st.columns(2)
 
-        total_scored = len(minutes_scored)
-        total_conceded = len(minutes_conceded)
+        for j in range(2):
+            if i + j < len(labels):
+                label = labels[i + j]
 
-        scored_counts = {band: 0 for band in time_bands}
-        conceded_counts = {band: 0 for band in time_bands}
+                sub_df = df[df["Label"] == label]
+                minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+                minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
 
-        for m in minutes_scored:
-            for band in time_bands:
-                low, high = map(int, band.split("-"))
-                if low <= m <= high:
-                    scored_counts[band] += 1
-                    break
+                if label.startswith("H_"):
+                    minutes_scored = minutes_home
+                    minutes_conceded = minutes_away
+                elif label.startswith("A_"):
+                    minutes_scored = minutes_away
+                    minutes_conceded = minutes_home
+                else:
+                    minutes_scored = minutes_home + minutes_away
+                    minutes_conceded = []
 
-        for m in minutes_conceded:
-            for band in time_bands:
-                low, high = map(int, band.split("-"))
-                if low <= m <= high:
-                    conceded_counts[band] += 1
-                    break
+                total_scored = len(minutes_scored)
+                total_conceded = len(minutes_conceded)
 
-        scored_percents = {
-            band: round((scored_counts[band] / total_scored * 100), 2) if total_scored > 0 else 0
-            for band in time_bands
-        }
+                scored_counts = {band: 0 for band in time_bands}
+                conceded_counts = {band: 0 for band in time_bands}
 
-        conceded_percents = {
-            band: round((conceded_counts[band] / total_conceded * 100), 2) if total_conceded > 0 else 0
-            for band in time_bands
-        }
+                for m in minutes_scored:
+                    for band in time_bands:
+                        low, high = map(int, band.split("-"))
+                        if low <= m <= high:
+                            scored_counts[band] += 1
+                            break
 
-        fig = go.Figure()
+                for m in minutes_conceded:
+                    for band in time_bands:
+                        low, high = map(int, band.split("-"))
+                        if low <= m <= high:
+                            conceded_counts[band] += 1
+                            break
 
-        # Goals Scored bar
-        fig.add_trace(go.Bar(
-            x=time_bands,
-            y=[scored_percents[b] for b in time_bands],
-            name='Goals Scored (%)',
-            marker_color='green',
-            text=[f"{scored_percents[b]:.2f}%" for b in time_bands],
-            textposition='outside',
-            customdata=[scored_counts[b] for b in time_bands],
-            hovertemplate=
-                '<b>%{x}</b><br>' +
-                'Scored Goals: %{customdata}<br>' +
-                'Percentage: %{y:.2f}%<extra></extra>'
-        ))
+                scored_percents = {
+                    band: round((scored_counts[band] / total_scored * 100), 2) if total_scored > 0 else 0
+                    for band in time_bands
+                }
 
-        # Goals Conceded bar
-        fig.add_trace(go.Bar(
-            x=time_bands,
-            y=[conceded_percents[b] for b in time_bands],
-            name='Goals Conceded (%)',
-            marker_color='red',
-            text=[f"{conceded_percents[b]:.2f}%" for b in time_bands],
-            textposition='outside',
-            customdata=[conceded_counts[b] for b in time_bands],
-            hovertemplate=
-                '<b>%{x}</b><br>' +
-                'Conceded Goals: %{customdata}<br>' +
-                'Percentage: %{y:.2f}%<extra></extra>'
-        ))
+                conceded_percents = {
+                    band: round((conceded_counts[band] / total_conceded * 100), 2) if total_conceded > 0 else 0
+                    for band in time_bands
+                }
 
-        fig.update_layout(
-            title=f"Goal Time Frame % - {label}",
-            barmode='group',
-            height=400,
-            yaxis=dict(title='Percentage (%)')
-        )
-        st.plotly_chart(fig, use_container_width=True)
+                fig = go.Figure()
+
+                fig.add_trace(go.Bar(
+                    x=time_bands,
+                    y=[scored_percents[b] for b in time_bands],
+                    name='Goals Scored (%)',
+                    marker_color='green',
+                    text=[f"{scored_percents[b]:.2f}%" for b in time_bands],
+                    textposition='outside',
+                    customdata=[scored_counts[b] for b in time_bands],
+                    hovertemplate=
+                        '<b>%{x}</b><br>' +
+                        'Scored Goals: %{customdata}<br>' +
+                        'Percentage: %{y:.2f}%<extra></extra>'
+                ))
+
+                fig.add_trace(go.Bar(
+                    x=time_bands,
+                    y=[conceded_percents[b] for b in time_bands],
+                    name='Goals Conceded (%)',
+                    marker_color='red',
+                    text=[f"{conceded_percents[b]:.2f}%" for b in time_bands],
+                    textposition='outside',
+                    customdata=[conceded_counts[b] for b in time_bands],
+                    hovertemplate=
+                        '<b>%{x}</b><br>' +
+                        'Conceded Goals: %{customdata}<br>' +
+                        'Percentage: %{y:.2f}%<extra></extra>'
+                ))
+
+                fig.update_layout(
+                    title=f"Goal Time Frame % - {label}",
+                    barmode='group',
+                    height=400,
+                    yaxis=dict(title='Percentage (%)')
+                )
+
+                with cols[j]:
+                    st.plotly_chart(fig, use_container_width=True)
