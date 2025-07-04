@@ -330,44 +330,47 @@ def compute_goal_patterns(df_team, venue, total_matches):
                         else:
                             tf_conceded[f"{start}-{end}"] += 1
 
-            # 1-0
-            if not one_zero_found and score_home == 1 and score_away == 0:
-                if venue == "Home":
+            # Pattern logic
+            if venue == "Home":
+                if not one_zero_found and score_home == 1 and score_away == 0:
                     one_zero += 1
-                one_zero_found = True
-
-            # 1-1 after 1-0
-            if one_zero_found and not checked_one_one_after_one_zero:
-                if score_home == 1 and score_away == 1:
-                    if venue == "Home":
-                        one_one_after_one_zero += 1
+                    one_zero_found = True
+                if one_zero_found and not checked_one_one_after_one_zero and score_home == 1 and score_away == 1:
+                    one_one_after_one_zero += 1
                     checked_one_one_after_one_zero = True
-
-            # 2-0 after 1-0
-            if one_zero_found and not checked_two_zero_after_one_zero:
-                if score_home == 2 and score_away == 0:
-                    if venue == "Home":
-                        two_zero_after_one_zero += 1
+                if one_zero_found and not checked_two_zero_after_one_zero and score_home == 2 and score_away == 0:
+                    two_zero_after_one_zero += 1
                     checked_two_zero_after_one_zero = True
 
-            # 0-1
-            if not zero_one_found and score_home == 0 and score_away == 1:
-                if venue == "Home":
+                if not zero_one_found and score_home == 0 and score_away == 1:
                     zero_one += 1
-                zero_one_found = True
-
-            # 1-1 after 0-1
-            if zero_one_found and not checked_one_one_after_zero_one:
-                if score_home == 1 and score_away == 1:
-                    if venue == "Home":
-                        one_one_after_zero_one += 1
+                    zero_one_found = True
+                if zero_one_found and not checked_one_one_after_zero_one and score_home == 1 and score_away == 1:
+                    one_one_after_zero_one += 1
                     checked_one_one_after_zero_one = True
+                if zero_one_found and not checked_zero_two_after_zero_one and score_home == 0 and score_away == 2:
+                    zero_two_after_zero_one += 1
+                    checked_zero_two_after_zero_one = True
 
-            # 0-2 after 0-1
-            if zero_one_found and not checked_zero_two_after_zero_one:
-                if score_home == 0 and score_away == 2:
-                    if venue == "Home":
-                        zero_two_after_zero_one += 1
+            elif venue == "Away":
+                if not one_zero_found and score_away == 1 and score_home == 0:
+                    one_zero += 1
+                    one_zero_found = True
+                if one_zero_found and not checked_one_one_after_one_zero and score_away == 1 and score_home == 1:
+                    one_one_after_one_zero += 1
+                    checked_one_one_after_one_zero = True
+                if one_zero_found and not checked_two_zero_after_one_zero and score_away == 2 and score_home == 0:
+                    two_zero_after_one_zero += 1
+                    checked_two_zero_after_one_zero = True
+
+                if not zero_one_found and score_away == 0 and score_home == 1:
+                    zero_one += 1
+                    zero_one_found = True
+                if zero_one_found and not checked_one_one_after_zero_one and score_away == 1 and score_home == 1:
+                    one_one_after_zero_one += 1
+                    checked_one_one_after_zero_one = True
+                if zero_one_found and not checked_zero_two_after_zero_one and score_away == 0 and score_home == 2:
+                    zero_two_after_zero_one += 1
                     checked_zero_two_after_zero_one = True
 
     two_up = sum(
@@ -483,6 +486,7 @@ def build_timeline(row, venue):
     try:
         h_goals = parse_goal_times(row.get("minuti goal segnato home", ""))
         a_goals = parse_goal_times(row.get("minuti goal segnato away", ""))
+
         timeline = []
 
         for m in h_goals:
@@ -490,8 +494,20 @@ def build_timeline(row, venue):
         for m in a_goals:
             timeline.append(("A", m))
 
-        timeline.sort(key=lambda x: x[1])
-        return timeline
+        if timeline:
+            timeline.sort(key=lambda x: x[1])
+            return timeline
+
+        # timeline vuota → costruisco fake timeline dai gol FT
+        h_ft = int(row.get("Home Goal FT", 0))
+        a_ft = int(row.get("Away Goal FT", 0))
+        fake_timeline = []
+        for _ in range(h_ft):
+            fake_timeline.append(("H", 90))
+        for _ in range(a_ft):
+            fake_timeline.append(("A", 91))
+        return fake_timeline if fake_timeline else []
+
     except:
         return []
 
