@@ -67,11 +67,14 @@ def run_macro_stats(df, db_selected):
         BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
-    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
-    media_row["Stagione"] = "Totale"
-    media_row["Matches"] = grouped["Matches"].sum()
-    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
+    if not grouped.empty:
+        media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+        media_row["country"] = grouped["country"].iloc[0]
+        media_row["Stagione"] = "Totale"
+        media_row["Matches"] = grouped["Matches"].sum()
+
+        if not media_row.drop(["country", "Stagione"]).isna().all():
+            grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
     # Rinominare colonne sostituendo pct -> %
     new_columns = {}
@@ -94,7 +97,7 @@ def run_macro_stats(df, db_selected):
             grouped.style.format(precision=2),
             use_container_width=True,
             hide_index=True,
-            height=9999,  # Grande altezza per evitare scroll verticale
+            height=9999,
             column_config={
                 "country": st.column_config.Column(width="small", pinned="left"),
                 "Stagione": st.column_config.Column(width="small", pinned="left"),
@@ -152,7 +155,7 @@ def run_macro_stats(df, db_selected):
             hide_index=True
         )
 
-    # Plotly Goal Time Frame - affiancati a 2 per riga
+    # Plotly Goal Time Frame - affiancati 2 per riga
     st.subheader(f"✅ Distribuzione Goal Time Frame % per Label - {db_selected}")
 
     time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
