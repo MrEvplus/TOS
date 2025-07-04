@@ -9,7 +9,6 @@ import altair as alt
 def run_team_stats(df, db_selected):
     st.header("📊 Statistiche per Squadre")
 
-    # Normalizza valori
     df["country"] = df["country"].fillna("").astype(str).str.strip().str.upper()
     db_selected = db_selected.strip().upper()
 
@@ -121,37 +120,22 @@ def show_team_macro_stats(df, team, venue):
 # GOAL PATTERNS
 # --------------------------------------------------------
 def show_goal_patterns(df, team1, team2):
+    # Home team
     df_team1_home = df[df["Home"] == team1]
     total_home_matches = len(df_team1_home)
 
+    # Away team
     df_team2_away = df[df["Away"] == team2]
     total_away_matches = len(df_team2_away)
 
-    patterns_home, tf_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
-    patterns_away, tf_away = compute_goal_patterns(df_team2_away, "Away", total_away_matches)
+    patterns_home, tf_scored_home, tf_conceded_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
+    patterns_away, tf_scored_away, tf_conceded_away = compute_goal_patterns(df_team2_away, "Away", total_away_matches)
 
-    # Calcolo Totali
-    total_matches = total_home_matches + total_away_matches
-    patterns_total = {}
-    tf_total = {}
-
-    for key in patterns_home:
-        if key == "P":
-            patterns_total[key] = total_matches
-        else:
-            val = (patterns_home[key] * total_home_matches + patterns_away[key] * total_away_matches) / total_matches if total_matches > 0 else 0
-            patterns_total[key] = round(val, 2)
-
-    for tf in tf_home:
-        val = (tf_home[tf] * total_home_matches + tf_away[tf] * total_away_matches) / total_matches if total_matches > 0 else 0
-        tf_total[tf] = round(val, 2)
-
-    # Tabelle HTML
+    # Render HTML tables
     html_home = build_goal_pattern_html(patterns_home, team1, "green")
     html_away = build_goal_pattern_html(patterns_away, team2, "red")
-    html_total = build_goal_pattern_html(patterns_total, "Totale", "blue")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     with col1:
         st.markdown(f"### {team1} (Home)")
@@ -161,37 +145,22 @@ def show_goal_patterns(df, team1, team2):
         st.markdown(f"### {team2} (Away)")
         st.markdown(html_away, unsafe_allow_html=True)
 
-    with col3:
-        st.markdown(f"### Totale")
-        st.markdown(html_total, unsafe_allow_html=True)
+    # Plot Home
+    st.markdown(f"### Distribuzione Goal Time Frame - {team1} (Home)")
+    chart_home = plot_timeframe_goals(tf_scored_home, tf_conceded_home, team1)
+    st.altair_chart(chart_home, use_container_width=True)
 
-    # Grafico Time Frame
-    df_tf = pd.DataFrame({
-        "Time Frame": list(tf_home.keys()),
-        f"{team1}": list(tf_home.values()),
-        f"{team2}": list(tf_away.values()),
-        "Totale": list(tf_total.values())
-    })
-
-    st.subheader("Distribuzione Goal Time Frame %")
-
-    chart = alt.Chart(df_tf.melt("Time Frame", var_name="Squadra", value_name="Percentuale"))\
-        .mark_bar()\
-        .encode(
-            x="Time Frame:N",
-            y="Percentuale:Q",
-            color="Squadra:N",
-            tooltip=["Squadra", "Time Frame", "Percentuale"]
-        ).properties(width=700)
-
-    st.altair_chart(chart, use_container_width=True)
+    # Plot Away
+    st.markdown(f"### Distribuzione Goal Time Frame - {team2} (Away)")
+    chart_away = plot_timeframe_goals(tf_scored_away, tf_conceded_away, team2)
+    st.altair_chart(chart_away, use_container_width=True)
 
 # --------------------------------------------------------
 # BUILD SINGLE TABLE
 # --------------------------------------------------------
 def build_goal_pattern_html(patterns, team, color):
     def bar_html(value, color, width_max=80):
-        width = int(width_max * (value/100))
+        width = int(width_max * (value / 100))
         return f"""
         <div style='display: flex; align-items: center;'>
             <div style='height: 10px; width: {width}px; background-color: {color}; margin-right: 5px;'></div>
@@ -213,16 +182,56 @@ def build_goal_pattern_html(patterns, team, color):
     return html_table
 
 # --------------------------------------------------------
+# PLOT TIMEFRAME GOALS
+# --------------------------------------------------------
+def plot_timeframe_goals(tf_scored_pct, tf_conceded_pct, team):
+    data = pd.DataFrame({
+        "TimeFrame": list(tf_scored_pct.keys()),
+        "Goals Scored (%)": list(tf_scored_pct.values()),
+        "Goals Conceded (%)": list(tf_conceded_pct.values())
+    })
+
+    df_melt = data.melt("TimeFrame", var_name="Tipo", value_name="Percentuale")
+
+    chart = alt.Chart(df_melt)\
+        .mark_bar()\
+        .encode(
+            x=alt.X("TimeFrame:N", sort=list(tf_scored_pct.keys()), title="Minute Intervals"),
+            y=alt.Y("Percentuale:Q", title="Percentage (%)"),
+            color=alt.Color("Tipo:N",
+                            scale=alt.Scale(
+                                domain=["Goals Scored (%)", "Goals Conceded (%)"],
+                                range=["green", "red"]
+                            )),
+            tooltip=["Tipo", "TimeFrame", "Percentuale"]
+        ).properties(
+            width=500,
+            height=200,
+            title=f"Goal Time Frame % - {team}"
+        )
+
+    text = alt.Chart(df_melt)\
+        .mark_text(
+            dy=-5,
+            color="black"
+        ).encode(
+            x="TimeFrame:N",
+            y="Percentuale:Q",
+            text=alt.Text("Percentuale:Q", format=".0f")
+        )
+
+    return chart + text
+
+# --------------------------------------------------------
 # COMPUTE GOAL PATTERNS
 # --------------------------------------------------------
 def compute_goal_patterns(df_team, venue, total_matches):
     if total_matches == 0:
-        return {key: 0 for key in goal_pattern_keys()}, {f"{a}-{b}": 0 for a,b in timeframes()}
+        return {key: 0 for key in goal_pattern_keys()}, {}, {}
 
     def pct(count):
         return round((count / total_matches) * 100, 2) if total_matches > 0 else 0
 
-    # Statistiche di base
     if venue == "Home":
         wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
         draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
@@ -232,64 +241,71 @@ def compute_goal_patterns(df_team, venue, total_matches):
         draws = sum(df_team["Away Goal FT"] == df_team["Home Goal FT"])
         losses = sum(df_team["Away Goal FT"] < df_team["Home Goal FT"])
 
-    # Analizza timeline
+    tf_scored = {f"{a}-{b}": 0 for a, b in timeframes()}
+    tf_conceded = {f"{a}-{b}": 0 for a, b in timeframes()}
+
     first_goal = last_goal = one_zero = one_one_after_one_zero = 0
     two_zero_after_one_zero = zero_one = one_one_after_zero_one = zero_two_after_zero_one = 0
-
-    tf_counts = {f"{a}-{b}": 0 for a,b in timeframes()}
 
     for _, row in df_team.iterrows():
         timeline = build_timeline(row, venue)
         if not timeline:
             continue
 
-        if timeline[0][0] == "H" and venue == "Home":
-            first_goal += 1
-        elif timeline[0][0] == "A" and venue == "Away":
-            first_goal += 1
-
-        if timeline[-1][0] == "H" and venue == "Home":
-            last_goal += 1
-        elif timeline[-1][0] == "A" and venue == "Away":
-            last_goal += 1
-
-        current_score = [0, 0]
-        seen_1_0 = False
-        seen_0_1 = False
-
-        for team, minute in timeline:
-            if team == "H":
-                current_score[0] += 1
-            else:
-                current_score[1] += 1
-
-            # conteggio time frame
+        for team_, minute in timeline:
             for start, end in timeframes():
                 if start < minute <= end:
-                    if venue == "Home" and team == "H":
-                        tf_counts[f"{start}-{end}"] += 1
-                    elif venue == "Away" and team == "A":
-                        tf_counts[f"{start}-{end}"] += 1
+                    if venue == "Home":
+                        if team_ == "H":
+                            tf_scored[f"{start}-{end}"] += 1
+                        else:
+                            tf_conceded[f"{start}-{end}"] += 1
+                    else:
+                        if team_ == "A":
+                            tf_scored[f"{start}-{end}"] += 1
+                        else:
+                            tf_conceded[f"{start}-{end}"] += 1
 
-            if current_score == [1, 0] and not seen_1_0:
-                one_zero += 1
-                seen_1_0 = True
-            if seen_1_0 and current_score == [1, 1]:
-                one_one_after_one_zero += 1
-                seen_1_0 = False
-            if seen_1_0 and current_score == [2, 0]:
-                two_zero_after_one_zero += 1
-                seen_1_0 = False
+        if timeline:
+            if timeline[0][0] == "H" and venue == "Home":
+                first_goal += 1
+            elif timeline[0][0] == "A" and venue == "Away":
+                first_goal += 1
 
-            if current_score == [0, 1] and not seen_0_1:
-                zero_one += 1
-                seen_0_1 = True
-            if seen_0_1 and current_score == [1, 1]:
-                one_one_after_zero_one += 1
-                seen_0_1 = False
-            if seen_0_1 and current_score == [0, 2]:
-                zero_two_after_zero_one += 1
-                seen_0_1 = False
+            if timeline[-1][0] == "H" and venue == "Home":
+                last_goal += 1
+            elif timeline[-1][0] == "A" and venue == "Away":
+                last_goal += 1
+
+            current_score = [0, 0]
+            seen_1_0 = False
+            seen_0_1 = False
+
+            for team_, _ in timeline:
+                if team_ == "H":
+                    current_score[0] += 1
+                else:
+                    current_score[1] += 1
+
+                if current_score == [1, 0] and not seen_1_0:
+                    one_zero += 1
+                    seen_1_0 = True
+                if seen_1_0 and current_score == [1, 1]:
+                    one_one_after_one_zero += 1
+                    seen_1_0 = False
+                if seen_1_0 and current_score == [2, 0]:
+                    two_zero_after_one_zero += 1
+                    seen_1_0 = False
+
+                if current_score == [0, 1] and not seen_0_1:
+                    zero_one += 1
+                    seen_0_1 = True
+                if seen_0_1 and current_score == [1, 1]:
+                    one_one_after_zero_one += 1
+                    seen_0_1 = False
+                if seen_0_1 and current_score == [0, 2]:
+                    zero_two_after_zero_one += 1
+                    seen_0_1 = False
 
     two_up = sum(
         abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2
@@ -323,6 +339,15 @@ def compute_goal_patterns(df_team, venue, total_matches):
     )
     sh_losses = total_matches - sh_wins - sh_draws
 
+    tf_scored_pct = {
+        k: round((v / sum(tf_scored.values())) * 100, 2) if sum(tf_scored.values()) > 0 else 0
+        for k, v in tf_scored.items()
+    }
+    tf_conceded_pct = {
+        k: round((v / sum(tf_conceded.values())) * 100, 2) if sum(tf_conceded.values()) > 0 else 0
+        for k, v in tf_conceded.items()
+    }
+
     patterns = {
         "P": total_matches,
         "Win %": pct(wins),
@@ -345,9 +370,7 @@ def compute_goal_patterns(df_team, venue, total_matches):
         "A 2nd %": pct(sh_losses)
     }
 
-    tf_percentages = {k: pct(v) for k, v in tf_counts.items()}
-
-    return patterns, tf_percentages
+    return patterns, tf_scored_pct, tf_conceded_pct
 
 # --------------------------------------------------------
 # TIMEFRAMES
@@ -361,6 +384,34 @@ def timeframes():
         (61, 75),
         (76, 120)
     ]
+
+# --------------------------------------------------------
+# BUILD TIMELINE
+# --------------------------------------------------------
+def build_timeline(row, venue):
+    try:
+        h_goals = parse_goal_times(row.get("minuti goal segnato home", ""))
+        a_goals = parse_goal_times(row.get("minuti goal segnato away", ""))
+        timeline = []
+
+        for m in h_goals:
+            timeline.append(("H", m))
+        for m in a_goals:
+            timeline.append(("A", m))
+
+        timeline.sort(key=lambda x: x[1])
+        return timeline
+    except:
+        return []
+
+def parse_goal_times(val):
+    if pd.isna(val) or val == "":
+        return []
+    times = []
+    for part in str(val).strip().split(";"):
+        if part.strip().isdigit():
+            times.append(int(part.strip()))
+    return times
 
 # --------------------------------------------------------
 # KEYS LIST
