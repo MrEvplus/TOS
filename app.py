@@ -3,9 +3,8 @@ import pandas as pd
 import numpy as np
 import os
 from macros import run_macro_stats
-from team_stats import run_team_stats
-from pre_match import run_pre_match
 from squadre import run_team_stats
+from pre_match import run_pre_match
 
 DATA_FOLDER = "data"
 
@@ -51,12 +50,12 @@ if not db_files:
     st.stop()
 
 # Seleziona database
-db_selected = st.sidebar.selectbox(
-    "Seleziona Campionato (Database):",
+file_selected = st.sidebar.selectbox(
+    "Seleziona File Excel:",
     db_files
 )
 
-DATA_PATH = os.path.join(DATA_FOLDER, db_selected)
+DATA_PATH = os.path.join(DATA_FOLDER, file_selected)
 
 try:
     # Carica Excel per vedere i fogli disponibili
@@ -88,6 +87,29 @@ try:
 
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
+    st.stop()
+
+# Normalizza e trova campionati
+if "country" in df.columns:
+    df["country"] = (
+        df["country"]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.upper()
+    )
+
+    campionati_disponibili = sorted(df["country"].unique())
+else:
+    campionati_disponibili = []
+
+if campionati_disponibili:
+    db_selected = st.sidebar.selectbox(
+        "Seleziona Campionato:",
+        campionati_disponibili
+    )
+else:
+    st.error("⚠️ Nessun campionato trovato nella colonna 'country' del foglio Excel selezionato.")
     st.stop()
 
 # Mostra colonne disponibili per debug
