@@ -5,6 +5,7 @@ import os
 from macros import run_macro_stats
 from team_stats import run_team_stats
 from pre_match import run_pre_match
+from squadre import run_team_stats
 
 DATA_FOLDER = "data"
 
