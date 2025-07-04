@@ -366,3 +366,16 @@ def build_full_html_table(pat_home, pat_away, pat_total, team1, team2):
         </table>
     """
     return table_html
+
+# --------------------------------------------------------
+# KEYS LIST
+# --------------------------------------------------------
+def goal_pattern_keys():
+    return [
+        "P", "Win %", "Draw %", "Loss %",
+        "First Goal %", "Last Goal %",
+        "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
+        "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
+        "2+ Goals %", "H 1st %", "D 1st %", "A 1st %",
+        "H 2nd %", "D 2nd %", "A 2nd %"
+    ]
