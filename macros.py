@@ -46,7 +46,7 @@ def run_macro_stats(df, db_selected):
 
     home_col = "Home"
 
-    # League Stats Summary
+    # League Stats Summary (VERSIONE ORIGINALE)
     group_cols = ["country", "Stagione"]
     grouped = df.groupby(group_cols).agg(
         Matches=(home_col, "count"),
@@ -67,22 +67,13 @@ def run_macro_stats(df, db_selected):
         BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
-    # Calcola media solo se grouped non è vuoto
-    if not grouped.empty:
-        media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-        media_row["country"] = grouped["country"].iloc[0]
-        media_row["Stagione"] = "Totale"
-        media_row["Matches"] = grouped["Matches"].sum()
+    media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
+    media_row["country"] = grouped["country"].iloc[0] if not grouped.empty else "TUTTI"
+    media_row["Stagione"] = "Totale"
+    media_row["Matches"] = grouped["Matches"].sum()
+    grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
 
-        # Aggiungi solo se almeno un valore numerico è presente
-        if not media_row.drop(["country", "Stagione"]).isna().all():
-            grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
-
-    # Rimuove eventuali righe tutte NaN
-    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
-    grouped = grouped[~grouped[cols_numeric].isna().all(axis=1)].reset_index(drop=True)
-
-    # Rinominare colonne sostituendo pct -> %
+    # Rinominare colonne pct -> %
     new_columns = {}
     for col in grouped.columns:
         if "pct" in col:
@@ -93,6 +84,7 @@ def run_macro_stats(df, db_selected):
 
     grouped.rename(columns=new_columns, inplace=True)
 
+    cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
