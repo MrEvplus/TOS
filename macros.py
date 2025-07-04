@@ -148,7 +148,7 @@ def run_macro_stats(df, db_selected):
             use_container_width=True
         )
 
-    # Plotly Goal Time Frame - in percentuale
+    # Plotly Goal Time Frame - in percentuale con hover dettagliato
     st.subheader(f"✅ Distribuzione Goal Time Frame % per Label - {db_selected}")
 
     time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
@@ -189,31 +189,50 @@ def run_macro_stats(df, db_selected):
                     break
 
         scored_percents = {
-            band: (scored_counts[band] / total_scored * 100) if total_scored > 0 else 0
+            band: round((scored_counts[band] / total_scored * 100), 2) if total_scored > 0 else 0
             for band in time_bands
         }
 
         conceded_percents = {
-            band: (conceded_counts[band] / total_conceded * 100) if total_conceded > 0 else 0
+            band: round((conceded_counts[band] / total_conceded * 100), 2) if total_conceded > 0 else 0
             for band in time_bands
         }
 
         fig = go.Figure()
+
+        # Goals Scored bar
         fig.add_trace(go.Bar(
             x=time_bands,
             y=[scored_percents[b] for b in time_bands],
             name='Goals Scored (%)',
-            marker_color='green'
+            marker_color='green',
+            text=[f"{scored_percents[b]:.2f}%" for b in time_bands],
+            textposition='outside',
+            customdata=[scored_counts[b] for b in time_bands],
+            hovertemplate=
+                '<b>%{x}</b><br>' +
+                'Scored Goals: %{customdata}<br>' +
+                'Percentage: %{y:.2f}%<extra></extra>'
         ))
+
+        # Goals Conceded bar
         fig.add_trace(go.Bar(
             x=time_bands,
             y=[conceded_percents[b] for b in time_bands],
             name='Goals Conceded (%)',
-            marker_color='red'
+            marker_color='red',
+            text=[f"{conceded_percents[b]:.2f}%" for b in time_bands],
+            textposition='outside',
+            customdata=[conceded_counts[b] for b in time_bands],
+            hovertemplate=
+                '<b>%{x}</b><br>' +
+                'Conceded Goals: %{customdata}<br>' +
+                'Percentage: %{y:.2f}%<extra></extra>'
         ))
+
         fig.update_layout(
             title=f"Goal Time Frame % - {label}",
-            barmode='stack',
+            barmode='group',
             height=400,
             yaxis=dict(title='Percentage (%)')
         )
