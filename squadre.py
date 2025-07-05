@@ -484,7 +484,10 @@ def compute_goal_patterns(df_team, venue, total_matches):
         row["Home Goal 1T"] == row["Away Goal 1T"]
         for _, row in df_team.iterrows()
     )
-    ht_away_win = total_matches - ht_home_win - ht_draw
+    ht_away_win = sum(
+        row["Home Goal 1T"] < row["Away Goal 1T"]
+        for _, row in df_team.iterrows()
+    )
 
     # -------------------------------
     # CALCOLO H/D/A 2nd HALF
@@ -499,7 +502,11 @@ def compute_goal_patterns(df_team, venue, total_matches):
         (row["Away Goal FT"] - row["Away Goal 1T"])
         for _, row in df_team.iterrows()
     )
-    sh_away_win = total_matches - sh_home_win - sh_draw
+    sh_away_win = sum(
+        (row["Home Goal FT"] - row["Home Goal 1T"]) <
+        (row["Away Goal FT"] - row["Away Goal 1T"])
+        for _, row in df_team.iterrows()
+    )
 
     tf_scored_pct = {
         k: round((v / sum(tf_scored.values())) * 100, 2) if sum(tf_scored.values()) > 0 else 0
@@ -534,6 +541,7 @@ def compute_goal_patterns(df_team, venue, total_matches):
     }
 
     return patterns, tf_scored_pct, tf_conceded_pct
+
 # --------------------------------------------------------
 # TOTALS
 # --------------------------------------------------------
