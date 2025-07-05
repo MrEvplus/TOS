@@ -687,3 +687,52 @@ def goal_pattern_keys_without_tf():
         "H 2nd %", "D 2nd %", "A 2nd %"
     ]
     return keys
+
+# --------------------------------------------------------
+# COMPUTE TEAM MACRO STATS
+# --------------------------------------------------------
+def compute_team_macro_stats(df, team, venue):
+    if venue == "Home":
+        data = df[df["Home"] == team]
+        goals_for_col = "Home Goal FT"
+        goals_against_col = "Away Goal FT"
+    else:
+        data = df[df["Away"] == team]
+        goals_for_col = "Away Goal FT"
+        goals_against_col = "Home Goal FT"
+
+    mask_played = data.apply(is_match_played, axis=1)
+    data = data[mask_played]
+
+    total_matches = len(data)
+    if total_matches == 0:
+        return {}
+
+    if venue == "Home":
+        wins = sum(data["Home Goal FT"] > data["Away Goal FT"])
+        draws = sum(data["Home Goal FT"] == data["Away Goal FT"])
+        losses = sum(data["Home Goal FT"] < data["Away Goal FT"])
+    else:
+        wins = sum(data["Away Goal FT"] > data["Home Goal FT"])
+        draws = sum(data["Away Goal FT"] == data["Home Goal FT"])
+        losses = sum(data["Away Goal FT"] < data["Home Goal FT"])
+
+    goals_for = data[goals_for_col].mean()
+    goals_against = data[goals_against_col].mean()
+
+    btts_count = sum(
+        (row["Home Goal FT"] > 0) and (row["Away Goal FT"] > 0)
+        for _, row in data.iterrows()
+    )
+    btts = (btts_count / total_matches) * 100 if total_matches > 0 else 0
+
+    stats = {
+        "Matches Played": total_matches,
+        "Win %": round((wins / total_matches) * 100, 2),
+        "Draw %": round((draws / total_matches) * 100, 2),
+        "Loss %": round((losses / total_matches) * 100, 2),
+        "Avg Goals Scored": round(goals_for, 2),
+        "Avg Goals Conceded": round(goals_against, 2),
+        "BTTS %": round(btts, 2)
+    }
+    return stats
