@@ -215,11 +215,13 @@ def is_match_played(row):
     if goals_sum > 0:
         return True
 
-    if (pd.notna(row["minuti goal segnato home"]) and row["minuti goal segnato home"].strip() != ""):
+    # se esiste almeno un minuto goal segnato
+    if pd.notna(row["minuti goal segnato home"]) and row["minuti goal segnato home"].strip() != "":
         return True
-    if (pd.notna(row["minuti goal segnato away"]) and row["minuti goal segnato away"].strip() != ""):
+    if pd.notna(row["minuti goal segnato away"]) and row["minuti goal segnato away"].strip() != "":
         return True
 
+    # se la partita è già nel passato → considerarla disputata anche se finita 0-0
     dt_match = parse_datetime_excel(row)
     if dt_match:
         return dt_match < datetime.now()
@@ -231,7 +233,15 @@ def parse_datetime_excel(row):
         data_str = str(row["Data"]).strip()
         ora_str = str(row["Orario"]).zfill(4)
 
-        giorno, mese, anno = map(int, data_str.split("/"))
+        if "-" in data_str:
+            # es. 2025-03-16
+            anno, mese, giorno = map(int, data_str.split("-"))
+        elif "/" in data_str:
+            # es. 16/03/2025
+            giorno, mese, anno = map(int, data_str.split("/"))
+        else:
+            return None
+
         ora = int(ora_str[:2])
         minuto = int(ora_str[2:])
 
@@ -239,6 +249,7 @@ def parse_datetime_excel(row):
         return dt
     except:
         return None
+
 
 # --------------------------------------------------------
 # BUILD HTML TABLE
