@@ -1,9 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils import label_match
-
 from squadre import compute_team_macro_stats, is_match_played
-from macros import label_match
 
 # -------------------------------------------
 # DETERMINA LABEL DALLA QUOTA
@@ -18,6 +16,7 @@ def label_from_odds(home_odd, away_odd):
         "Odd Away": away_odd
     }
     return label_match(fake_row)
+
 # -------------------------------------------
 # CALCOLA BOOKIE STATS SU DB
 # -------------------------------------------
@@ -42,7 +41,6 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
     if df_filtered.empty:
         return 0, 0, 0
 
-    stake = 1
     profit = 0
     wins = 0
 
@@ -68,24 +66,24 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
         else:
             continue
 
-        # Evita errori se quota mancante o zero
-        if not price or price <= 0:
+        if not price or price <= 1:
             continue
 
         if bet_type == "back":
+            stake = 1
             if won_bet:
                 profit += (price - 1) * stake
                 wins += 1
             else:
                 profit -= stake
         else:
-            # LAY logic → bancare vuol dire incassare stake se non esce il risultato
+            # LAY logic → responsabilità fissa a 1 punto
+            stake = 1 / (price - 1)
             if not won_bet:
                 profit += stake
                 wins += 1
             else:
-                liability = (price - 1) * stake
-                profit -= liability
+                profit -= 1
 
     matches = len(df_filtered)
     win_pct = (wins / matches) * 100 if matches > 0 else 0
@@ -139,6 +137,10 @@ def run_pre_match(df, db_selected):
         label = label_from_odds(odd_home, odd_away)
         st.markdown(f"### 🎯 Range di quota identificato (Label): `{label}`")
 
+        if label == "Others":
+            st.warning("⚠️ Le quote inserite non rientrano in nessun range di quota (Label). Impossibile calcolare statistiche Bookie Pts and ROI.")
+            return
+
         # -------------------------------------------------------
         # BOOKIE PTS AND ROI TABLE
         # -------------------------------------------------------
@@ -163,6 +165,9 @@ def run_pre_match(df, db_selected):
 
         df_bookie = pd.DataFrame(rows)
         if not df_bookie.empty:
+            # Ordina le colonne per Home → Draw → Away
+            df_bookie["Market"] = pd.Categorical(df_bookie["Market"], categories=["Home", "Draw", "Away"], ordered=True)
+            df_bookie = df_bookie.sort_values(["Label", "Market"])
             df_pivot = df_bookie.pivot(index="Label", columns="Market")
             st.dataframe(df_pivot, use_container_width=True)
         else:
