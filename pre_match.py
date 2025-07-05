@@ -22,7 +22,7 @@ def label_from_odds(home_odd, away_odd):
 # -------------------------------------------
 def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
     """
-    Calcola Win %, Pts e ROI per il mercato specificato (Home, Draw, Away).
+    Calcola Win %, Pts, ROI e numero Matches per il mercato (Home, Draw, Away).
     - bet_type: "back" oppure "lay"
     - team: se passato, filtra solo le partite di quella squadra.
     """
@@ -36,7 +36,7 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
             elif market == "Draw":
                 df_filtered = df[(df["Label"] == label)]
             else:
-                return 0, 0, 0
+                return 0, 0, 0, 0
         else:
             if market == "Home":
                 df_filtered = df[df["Home"] == team]
@@ -45,7 +45,7 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
             elif market == "Draw":
                 df_filtered = df
             else:
-                return 0, 0, 0
+                return 0, 0, 0, 0
     else:
         if label:
             df_filtered = df[(df["Label"] == label)]
@@ -53,7 +53,7 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
             df_filtered = df
 
     if df_filtered.empty:
-        return 0, 0, 0
+        return 0, 0, 0, 0
 
     profit = 0
     wins = 0
@@ -103,7 +103,7 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
     win_pct = (wins / matches) * 100 if matches > 0 else 0
     roi = (profit / matches) * 100 if matches > 0 else 0
 
-    return round(win_pct, 2), round(profit, 2), round(roi, 2)
+    return round(win_pct, 2), round(profit, 2), round(roi, 2), matches
 
 # -------------------------------------------
 # PAGINA STREAMLIT
@@ -151,10 +151,22 @@ def run_pre_match(df, db_selected):
         label = label_from_odds(odd_home, odd_away)
         st.markdown(f"### 🎯 Range di quota identificato (Label): `{label}`")
 
+        # Mostra distribuzione Labels
+        st.markdown("### 🔎 Distribuzione Labels nel database")
+        label_counts = df["Label"].value_counts()
+        st.write(label_counts)
+
+        # Mostra righe con il Label scelto
+        if label and label != "Others":
+            st.markdown(f"### 🔎 Partite trovate per Label `{label}`")
+            df_label = df[df["Label"] == label]
+            st.write(df_label[["Home", "Away", "start_price_home", "start_price_away"]].head(10))
+
+        # Fallback se nessun match
         if label == "Others":
             st.info("⚠️ Le quote inserite non rientrano in nessun range di quota (Label). Verranno calcolate statistiche su TUTTO il campionato.")
             label = None
-        elif label not in df["Label"].unique():
+        elif label not in df["Label"].unique() or df[df["Label"] == label].empty:
             st.info(f"⚠️ Nessuna partita trovata nel database per il Label `{label}`. Verranno calcolate statistiche su TUTTO il campionato.")
             label = None
 
@@ -167,11 +179,12 @@ def run_pre_match(df, db_selected):
         rows = []
         for lbl, team in [("League", None), (squadra_casa, squadra_casa), (squadra_ospite, squadra_ospite)]:
             for market in ["Home", "Draw", "Away"]:
-                win_pct_b, pts_b, roi_b = compute_bookie_stats(df, label, market, team, bet_type="back")
-                win_pct_l, pts_l, roi_l = compute_bookie_stats(df, label, market, team, bet_type="lay")
+                win_pct_b, pts_b, roi_b, matches_b = compute_bookie_stats(df, label, market, team, bet_type="back")
+                win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, label, market, team, bet_type="lay")
                 rows.append({
                     "Label": lbl,
                     "Market": market,
+                    "Matches": matches_b,
                     "Back Win %": win_pct_b,
                     "Back Pts": pts_b,
                     "Back ROI %": roi_b,
