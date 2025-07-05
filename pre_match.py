@@ -1,8 +1,92 @@
 import streamlit as st
 import pandas as pd
 
-from squadre import compute_team_macro_stats
+from squadre import compute_team_macro_stats, is_match_played
+from macros import label_match
 
+# -------------------------------------------
+# DETERMINA LABEL DALLA QUOTA
+# -------------------------------------------
+def label_from_odds(home_odd, away_odd):
+    """
+    Calcola la Label (range di quota) corrispondente alle quote inserite.
+    Simula una riga del DB per usare label_match.
+    """
+    fake_row = {
+        "start_price_home": home_odd,
+        "start_price_away": away_odd
+    }
+    return label_match(fake_row)
+
+# -------------------------------------------
+# CALCOLA BOOKIE STATS SU DB
+# -------------------------------------------
+def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
+    """
+    Calcola Win %, Pts e ROI per il mercato specificato (Home, Draw, Away).
+    - bet_type: "back" oppure "lay"
+    - team: se passato, filtra solo le partite di quella squadra.
+    """
+    if team:
+        if market == "Home":
+            df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
+        elif market == "Away":
+            df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
+        else:
+            df_filtered = df[(df["Label"] == label)]
+    else:
+        df_filtered = df[(df["Label"] == label)]
+
+    if df_filtered.empty:
+        return 0, 0, 0
+
+    stake = 1
+    profit = 0
+    wins = 0
+
+    for _, row in df_filtered.iterrows():
+        result_home = row["Home Goal FT"]
+        result_away = row["Away Goal FT"]
+
+        if market == "Home":
+            won_bet = result_home > result_away
+            price = row["start_price_home"]
+
+        elif market == "Draw":
+            won_bet = result_home == result_away
+            price = row["start_price_draw"]
+
+        elif market == "Away":
+            won_bet = result_away > result_home
+            price = row["start_price_away"]
+
+        # Calcolo back o lay
+        if bet_type == "back":
+            if won_bet:
+                profit += (price - 1) * stake
+                wins += 1
+            else:
+                profit -= stake
+        else:
+            # LAY logic → bancare vuol dire incassare stake se non esce il risultato
+            if not won_bet:
+                # Vincita netta = stake
+                profit += stake
+                wins += 1
+            else:
+                # Perdita = (lay odds - 1) * stake
+                liability = (price - 1) * stake
+                profit -= liability
+
+    matches = len(df_filtered)
+    win_pct = (wins / matches) * 100 if matches > 0 else 0
+    roi = (profit / matches) * 100 if matches > 0 else 0
+
+    return round(win_pct, 2), round(profit, 2), round(roi, 2)
+
+# -------------------------------------------
+# PAGINA STREAMLIT
+# -------------------------------------------
 def run_pre_match(df, db_selected):
     st.title("⚔️ Confronto Pre Match")
 
@@ -33,10 +117,44 @@ def run_pre_match(df, db_selected):
         st.write(f"- **Pareggio:** {implied_draw}%")
         st.write(f"- **Ospite ({squadra_ospite}):** {implied_away}%")
 
+        # -------------------------------------------------------
+        # CALCOLO LA LABEL DEL RANGE DI QUOTA
+        # -------------------------------------------------------
+        label = label_from_odds(odd_home, odd_away)
+        st.markdown(f"### 🎯 Range di quota identificato (Label): `{label}`")
+
+        # -------------------------------------------------------
+        # BOOKIE PTS AND ROI TABLE
+        # -------------------------------------------------------
+        st.markdown("---")
+        st.markdown("## 📊 Bookie Pts and ROI Table")
+
+        rows = []
+        for lbl, team in [("League", None), (squadra_casa, squadra_casa), (squadra_ospite, squadra_ospite)]:
+            for market in ["Home", "Draw", "Away"]:
+                win_pct_b, pts_b, roi_b = compute_bookie_stats(df, label, market, team, bet_type="back")
+                win_pct_l, pts_l, roi_l = compute_bookie_stats(df, label, market, team, bet_type="lay")
+                rows.append({
+                    "Label": lbl,
+                    "Market": market,
+                    "Back Win %": win_pct_b,
+                    "Back Pts": pts_b,
+                    "Back ROI %": roi_b,
+                    "Lay Win %": win_pct_l,
+                    "Lay Pts": pts_l,
+                    "Lay ROI %": roi_l
+                })
+
+        df_bookie = pd.DataFrame(rows)
+        df_pivot = df_bookie.pivot(index="Label", columns="Market")
+        st.dataframe(df_pivot, use_container_width=True)
+
+        # -------------------------------------------------------
+        # CONFRONTO MACRO STATS
+        # -------------------------------------------------------
         st.markdown("---")
         st.markdown("## 📊 Confronto Statistiche Pre-Match")
 
-        # Calcola macro stats
         stats_home = compute_team_macro_stats(df, squadra_casa, "Home")
         stats_away = compute_team_macro_stats(df, squadra_ospite, "Away")
 
@@ -52,48 +170,3 @@ def run_pre_match(df, db_selected):
         st.dataframe(df_comp, use_container_width=True)
 
         st.success("✅ Confronto Pre Match generato con successo!")
-def compute_team_macro_stats(df, team, venue):
-    if venue == "Home":
-        data = df[df["Home"] == team]
-        goals_for_col = "Home Goal FT"
-        goals_against_col = "Away Goal FT"
-    else:
-        data = df[df["Away"] == team]
-        goals_for_col = "Away Goal FT"
-        goals_against_col = "Home Goal FT"
-
-    mask_played = data.apply(is_match_played, axis=1)
-    data = data[mask_played]
-
-    total_matches = len(data)
-    if total_matches == 0:
-        return {}
-
-    if venue == "Home":
-        wins = sum(data["Home Goal FT"] > data["Away Goal FT"])
-        draws = sum(data["Home Goal FT"] == data["Away Goal FT"])
-        losses = sum(data["Home Goal FT"] < data["Away Goal FT"])
-    else:
-        wins = sum(data["Away Goal FT"] > data["Home Goal FT"])
-        draws = sum(data["Away Goal FT"] == data["Home Goal FT"])
-        losses = sum(data["Away Goal FT"] < data["Home Goal FT"])
-
-    goals_for = data[goals_for_col].mean()
-    goals_against = data[goals_against_col].mean()
-
-    btts_count = sum(
-        (row["Home Goal FT"] > 0) and (row["Away Goal FT"] > 0)
-        for _, row in data.iterrows()
-    )
-    btts = (btts_count / total_matches) * 100 if total_matches > 0 else 0
-
-    stats = {
-        "Matches Played": total_matches,
-        "Win %": round((wins / total_matches) * 100, 2),
-        "Draw %": round((draws / total_matches) * 100, 2),
-        "Loss %": round((losses / total_matches) * 100, 2),
-        "Avg Goals Scored": round(goals_for, 2),
-        "Avg Goals Conceded": round(goals_against, 2),
-        "BTTS %": round(btts, 2)
-    }
-    return stats
