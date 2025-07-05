@@ -2,31 +2,55 @@ import streamlit as st
 import pandas as pd
 from utils import label_match
 from squadre import compute_team_macro_stats, is_match_played
+from macros import run_macro_stats
 
-# -------------------------------------------
-# DETERMINA LABEL DALLA QUOTA
-# -------------------------------------------
+# --------------------------------------------------------
+# FUNZIONE PER OTTENERE LEAGUE DATA BY LABEL
+# --------------------------------------------------------
+def get_league_data_by_label(df, label):
+    """
+    Restituisce un dict con le stats della League per uno specifico Label.
+    """
+    # Assicura che la colonna Label esista
+    if "Label" not in df.columns:
+        df = df.copy()
+        df["Label"] = df.apply(label_match, axis=1)
+
+    # Costruisci campo match_result
+    df["match_result"] = df.apply(
+        lambda row: "Home Win" if row["Home Goal FT"] > row["Away Goal FT"]
+        else "Away Win" if row["Home Goal FT"] < row["Away Goal FT"]
+        else "Draw",
+        axis=1
+    )
+
+    group_label = df.groupby("Label").agg(
+        Matches=("Home", "count"),
+        HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
+        Draw_pct=("match_result", lambda x: (x == "Draw").mean() * 100),
+        AwayWin_pct=("match_result", lambda x: (x == "Away Win").mean() * 100)
+    ).reset_index()
+
+    row = group_label[group_label["Label"] == label]
+    if not row.empty:
+        return row.iloc[0].to_dict()
+    else:
+        return None
+
+# --------------------------------------------------------
+# LABEL FROM ODDS
+# --------------------------------------------------------
 def label_from_odds(home_odd, away_odd):
-    """
-    Calcola la Label (range di quota) corrispondente alle quote inserite.
-    Usa la funzione label_match dal file utils.py.
-    """
     fake_row = {
         "Odd home": home_odd,
         "Odd Away": away_odd
     }
     return label_match(fake_row)
 
-# -------------------------------------------
-# CALCOLA BOOKIE STATS SU DB
-# -------------------------------------------
+# --------------------------------------------------------
+# COMPUTE BOOKIE STATS
+# --------------------------------------------------------
 def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
-    """
-    Calcola Win %, Pts, ROI e numero Matches per il mercato (Home, Draw, Away).
-    - bet_type: "back" oppure "lay"
-    - team: se passato, filtra solo le partite di quella squadra.
-    """
-    # Se label è None → calcola su tutto il DB
     if team:
         if label:
             if market == "Home":
@@ -105,20 +129,17 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
 
     return round(win_pct, 2), round(profit, 2), round(roi, 2), matches
 
-# -------------------------------------------
-# PAGINA STREAMLIT
-# -------------------------------------------
+# --------------------------------------------------------
+# RUN PRE MATCH PAGE
+# --------------------------------------------------------
 def run_pre_match(df, db_selected):
     st.title("⚔️ Confronto Pre Match")
 
-    # ---------------------------------------------------
-    # AGGIUNGI LA COLONNA LABEL AL DATAFRAME SE NON ESISTE
-    # ---------------------------------------------------
+    # Assicura Label
     if "Label" not in df.columns:
         df = df.copy()
         df["Label"] = df.apply(label_match, axis=1)
 
-    # Filtro squadre disponibili
     teams_available = sorted(
         set(df[df["country"] == db_selected]["Home"].dropna().unique()) |
         set(df[df["country"] == db_selected]["Away"].dropna().unique())
@@ -145,30 +166,19 @@ def run_pre_match(df, db_selected):
         st.write(f"- **Pareggio:** {implied_draw}%")
         st.write(f"- **Ospite ({squadra_ospite}):** {implied_away}%")
 
-        # -------------------------------------------------------
-        # CALCOLO LA LABEL DEL RANGE DI QUOTA
-        # -------------------------------------------------------
+        # Calcola Label
         label = label_from_odds(odd_home, odd_away)
         st.markdown(f"### 🎯 Range di quota identificato (Label): `{label}`")
 
-        # Mostra distribuzione Labels
-        st.markdown("### 🔎 Distribuzione Labels nel database")
-        label_counts = df["Label"].value_counts()
-        st.write(label_counts)
-
-        # Mostra righe con il Label scelto
-        if label and label != "Others":
-            st.markdown(f"### 🔎 Partite trovate per Label `{label}`")
-            df_label = df[df["Label"] == label]
-            st.write(df_label[["Home", "Away", "start_price_home", "start_price_away"]].head(10))
-
-        # Fallback se nessun match
         if label == "Others":
             st.info("⚠️ Le quote inserite non rientrano in nessun range di quota (Label). Verranno calcolate statistiche su TUTTO il campionato.")
             label = None
         elif label not in df["Label"].unique() or df[df["Label"] == label].empty:
             st.info(f"⚠️ Nessuna partita trovata nel database per il Label `{label}`. Verranno calcolate statistiche su TUTTO il campionato.")
             label = None
+
+        # League Data
+        league_stats = get_league_data_by_label(df, label) if label else None
 
         # -------------------------------------------------------
         # BOOKIE PTS AND ROI TABLE
@@ -177,7 +187,45 @@ def run_pre_match(df, db_selected):
         st.markdown("## 📊 Bookie Pts and ROI Table")
 
         rows = []
-        for lbl, team in [("League", None), (squadra_casa, squadra_casa), (squadra_ospite, squadra_ospite)]:
+
+        # League row
+        if league_stats:
+            rows.append({
+                "Label": "League",
+                "Market": "Home",
+                "Matches": int(league_stats["Matches"]),
+                "Back Win %": round(league_stats["HomeWin_pct"], 2),
+                "Back Pts": None,
+                "Back ROI %": None,
+                "Lay Win %": None,
+                "Lay Pts": None,
+                "Lay ROI %": None
+            })
+            rows.append({
+                "Label": "League",
+                "Market": "Draw",
+                "Matches": int(league_stats["Matches"]),
+                "Back Win %": round(league_stats["Draw_pct"], 2),
+                "Back Pts": None,
+                "Back ROI %": None,
+                "Lay Win %": None,
+                "Lay Pts": None,
+                "Lay ROI %": None
+            })
+            rows.append({
+                "Label": "League",
+                "Market": "Away",
+                "Matches": int(league_stats["Matches"]),
+                "Back Win %": round(league_stats["AwayWin_pct"], 2),
+                "Back Pts": None,
+                "Back ROI %": None,
+                "Lay Win %": None,
+                "Lay Pts": None,
+                "Lay ROI %": None
+            })
+
+        # Home & Away
+        for lbl, team in [(squadra_casa, squadra_casa), (squadra_ospite, squadra_ospite)]:
             for market in ["Home", "Draw", "Away"]:
                 win_pct_b, pts_b, roi_b, matches_b = compute_bookie_stats(df, label, market, team, bet_type="back")
                 win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, label, market, team, bet_type="lay")
