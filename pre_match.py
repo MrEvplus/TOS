@@ -50,9 +50,9 @@ def label_from_odds(home_odd, away_odd):
 # DETERMINA TIPO DI LABEL
 # --------------------------------------------------------
 def get_label_type(label):
-    if label.startswith("H_"):
+    if label and label.startswith("H_"):
         return "Home"
-    elif label.startswith("A_"):
+    elif label and label.startswith("A_"):
         return "Away"
     else:
         return "Both"
@@ -221,9 +221,12 @@ def run_pre_match(df, db_selected):
             rows.append(row_league)
 
         # Squadra Casa
-        row_home = {"LABEL": "HOME"}
+        row_home = {"LABEL": squadra_casa}
         if label and label_type in ["Home", "Both"]:
-            matches_home = len(df[(df["Label"] == label) & (df["Home"] == squadra_casa)])
+            filtered_home = df[(df["Label"] == label) & (df["Home"] == squadra_casa)]
+            matches_home = len(filtered_home)
+            st.write(f"DEBUG - Partite Home per {squadra_casa} nel Label {label}: {matches_home}")
+            st.dataframe(filtered_home)
         else:
             matches_home = "N/A"
         row_home["MATCHES"] = matches_home
@@ -244,18 +247,21 @@ def run_pre_match(df, db_selected):
 
         rows.append(row_home)
 
-        # Squadra Away
-        row_away = {"LABEL": "AWAY"}
+        # Squadra Ospite
+        row_away = {"LABEL": squadra_ospite}
         if label and label_type in ["Away", "Both"]:
-            matches_away = len(df[(df["Label"] == label) & (df["Away"] == squadra_casa)])
+            filtered_away = df[(df["Label"] == label) & (df["Away"] == squadra_ospite)]
+            matches_away = len(filtered_away)
+            st.write(f"DEBUG - Partite Away per {squadra_ospite} nel Label {label}: {matches_away}")
+            st.dataframe(filtered_away)
         else:
             matches_away = "N/A"
         row_away["MATCHES"] = matches_away
 
         for market in ["Home", "Draw", "Away"]:
             if matches_away != "N/A" and matches_away > 0:
-                win_pct_b, pts_b, roi_b, _ = compute_bookie_stats(df, label, market, squadra_casa, bet_type="back")
-                win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, label, market, squadra_casa, bet_type="lay")
+                win_pct_b, pts_b, roi_b, _ = compute_bookie_stats(df, label, market, squadra_ospite, bet_type="back")
+                win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, label, market, squadra_ospite, bet_type="lay")
             else:
                 win_pct_b = pts_b = roi_b = win_pct_l = pts_l = roi_l = 0
 
