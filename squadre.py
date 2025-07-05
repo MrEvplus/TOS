@@ -368,11 +368,10 @@ def compute_goal_patterns(df_team, venue, total_matches):
             if last == "A":
                 last_goal += 1
 
-        # Calcolo eventi goal pattern
+        # Calcolo TF goals
         score_home = 0
         score_away = 0
 
-        # scorri timeline e calcola TF
         for team_char, minute in timeline:
             if team_char == "H":
                 score_home += 1
@@ -399,43 +398,72 @@ def compute_goal_patterns(df_team, venue, total_matches):
         if venue == "Home":
             if first == "H":
                 one_zero += 1
-                # verifico eventi successivi
+                score_home = 1
+                score_away = 0
                 for team_char, _ in timeline[1:]:
-                    if team_char == "A":
-                        one_one_after_one_zero += 1
-                        break
                     if team_char == "H":
+                        score_home += 1
+                    else:
+                        score_away += 1
+
+                    if score_home == 2 and score_away == 0:
                         two_zero_after_one_zero += 1
+                        break
+                    if score_home == 1 and score_away == 1:
+                        one_one_after_one_zero += 1
                         break
 
             elif first == "A":
                 zero_one += 1
+                score_home = 0
+                score_away = 1
                 for team_char, _ in timeline[1:]:
                     if team_char == "H":
+                        score_home += 1
+                    else:
+                        score_away += 1
+
+                    if score_home == 1 and score_away == 1:
                         one_one_after_zero_one += 1
                         break
-                    if team_char == "A":
+                    if score_home == 0 and score_away == 2:
                         zero_two_after_zero_one += 1
                         break
 
         elif venue == "Away":
             if first == "H":
+                # casa segna per prima → 1-0
                 one_zero += 1
+                score_home = 1
+                score_away = 0
                 for team_char, _ in timeline[1:]:
-                    if team_char == "A":
-                        one_one_after_one_zero += 1
-                        break
                     if team_char == "H":
+                        score_home += 1
+                    else:
+                        score_away += 1
+
+                    if score_home == 2 and score_away == 0:
                         two_zero_after_one_zero += 1
+                        break
+                    if score_home == 1 and score_away == 1:
+                        one_one_after_one_zero += 1
                         break
 
             elif first == "A":
+                # away segna per prima → 0-1
                 zero_one += 1
+                score_home = 0
+                score_away = 1
                 for team_char, _ in timeline[1:]:
                     if team_char == "H":
+                        score_home += 1
+                    else:
+                        score_away += 1
+
+                    if score_home == 1 and score_away == 1:
                         one_one_after_zero_one += 1
                         break
-                    if team_char == "A":
+                    if score_home == 0 and score_away == 2:
                         zero_two_after_zero_one += 1
                         break
 
@@ -504,7 +532,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
     }
 
     return patterns, tf_scored_pct, tf_conceded_pct
-
 # --------------------------------------------------------
 # TOTALS
 # --------------------------------------------------------
