@@ -138,7 +138,11 @@ def run_pre_match(df, db_selected):
         st.markdown(f"### 🎯 Range di quota identificato (Label): `{label}`")
 
         if label == "Others":
-            st.warning("⚠️ Le quote inserite non rientrano in nessun range di quota (Label). Impossibile calcolare statistiche Bookie Pts and ROI.")
+            st.info("⚠️ Le quote inserite non rientrano in nessun range di quota (Label). Verranno calcolate statistiche su TUTTO il campionato.")
+            label = None
+        elif label not in df["Label"].unique():
+            st.info(f"⚠️ Nessuna partita trovata nel database per il Label `{label}`. Verranno calcolate statistiche su TUTTO il campionato.")
+            label = None
             return
 
         # -------------------------------------------------------
