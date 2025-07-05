@@ -85,6 +85,11 @@ try:
 
     st.sidebar.success("✅ Foglio Excel caricato correttamente!")
 
+    from utils import label_match
+
+    if "Label" not in df.columns:
+        df["Label"] = df.apply(label_match, axis=1)
+
 except Exception as e:
     st.error(f"Errore nel caricamento file: {e}")
     st.stop()
