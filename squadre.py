@@ -368,15 +368,11 @@ def compute_goal_patterns(df_team, venue, total_matches):
             if last == "A":
                 last_goal += 1
 
+        # Calcolo eventi goal pattern
         score_home = 0
         score_away = 0
-        one_zero_found = False
-        zero_one_found = False
-        checked_one_one_after_one_zero = False
-        checked_two_zero_after_one_zero = False
-        checked_one_one_after_zero_one = False
-        checked_zero_two_after_zero_one = False
 
+        # scorri timeline e calcola TF
         for team_char, minute in timeline:
             if team_char == "H":
                 score_home += 1
@@ -396,47 +392,52 @@ def compute_goal_patterns(df_team, venue, total_matches):
                         else:
                             tf_conceded[f"{start}-{end}"] += 1
 
-            if venue == "Home":
-                if not one_zero_found and score_home == 1 and score_away == 0:
-                    one_zero += 1
-                    one_zero_found = True
-                if one_zero_found and not checked_one_one_after_one_zero and score_home == 1 and score_away == 1:
-                    one_one_after_one_zero += 1
-                    checked_one_one_after_one_zero = True
-                if one_zero_found and not checked_two_zero_after_one_zero and score_home == 2 and score_away == 0:
-                    two_zero_after_one_zero += 1
-                    checked_two_zero_after_one_zero = True
+        # -------------------------------
+        # PATTERNS ANALYSIS
+        # -------------------------------
 
-                if not zero_one_found and score_home == 0 and score_away == 1:
-                    zero_one += 1
-                    zero_one_found = True
-                if zero_one_found and not checked_one_one_after_zero_one and score_home == 1 and score_away == 1:
-                    one_one_after_zero_one += 1
-                    checked_one_one_after_zero_one = True
-                if zero_one_found and not checked_zero_two_after_zero_one and score_home == 0 and score_away == 2:
-                    zero_two_after_zero_one += 1
-                    checked_zero_two_after_zero_one = True
+        if venue == "Home":
+            if first == "H":
+                one_zero += 1
+                # verifico eventi successivi
+                for team_char, _ in timeline[1:]:
+                    if team_char == "A":
+                        one_one_after_one_zero += 1
+                        break
+                    if team_char == "H":
+                        two_zero_after_one_zero += 1
+                        break
 
-            elif venue == "Away":
-                if not one_zero_found and score_home == 1 and score_away == 0:
-                    one_zero += 1
-                    one_zero_found = True
-                if one_zero_found and not checked_one_one_after_one_zero and score_home == 1 and score_away == 1:
-                    one_one_after_one_zero += 1
-                    checked_one_one_after_one_zero = True
-                if one_zero_found and not checked_two_zero_after_one_zero and score_home == 2 and score_away == 0:
-                    two_zero_after_one_zero += 1
-                    checked_two_zero_after_one_zero = True
+            elif first == "A":
+                zero_one += 1
+                for team_char, _ in timeline[1:]:
+                    if team_char == "H":
+                        one_one_after_zero_one += 1
+                        break
+                    if team_char == "A":
+                        zero_two_after_zero_one += 1
+                        break
 
-                if not zero_one_found and score_home == 0 and score_away == 1:
-                    zero_one += 1
-                    zero_one_found = True
-                if zero_one_found and not checked_one_one_after_zero_one and score_home == 1 and score_away == 1:
-                    one_one_after_zero_one += 1
-                    checked_one_one_after_zero_one = True
-                if zero_one_found and not checked_zero_two_after_zero_one and score_home == 0 and score_away == 2:
-                    zero_two_after_zero_one += 1
-                    checked_zero_two_after_zero_one = True
+        elif venue == "Away":
+            if first == "H":
+                one_zero += 1
+                for team_char, _ in timeline[1:]:
+                    if team_char == "A":
+                        one_one_after_one_zero += 1
+                        break
+                    if team_char == "H":
+                        two_zero_after_one_zero += 1
+                        break
+
+            elif first == "A":
+                zero_one += 1
+                for team_char, _ in timeline[1:]:
+                    if team_char == "H":
+                        one_one_after_zero_one += 1
+                        break
+                    if team_char == "A":
+                        zero_two_after_zero_one += 1
+                        break
 
     two_up = sum(
         abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2
@@ -503,6 +504,7 @@ def compute_goal_patterns(df_team, venue, total_matches):
     }
 
     return patterns, tf_scored_pct, tf_conceded_pct
+
 # --------------------------------------------------------
 # TOTALS
 # --------------------------------------------------------
