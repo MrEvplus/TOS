@@ -362,36 +362,36 @@ def compute_goal_patterns(df_team, venue, total_matches):
         if not timeline:
             continue
 
-    # FIRST GOAL
-    first = timeline[0][0] if len(timeline) > 0 else None
+        # FIRST GOAL
+        first = timeline[0][0] if len(timeline) > 0 else None
 
-    if venue == "Home":
-        if first == "H":
-            first_goal += 1
-    else:
-        if first == "A":
-            first_goal += 1
+        if venue == "Home":
+            if first == "H":
+                first_goal += 1
+        else:
+            if first == "A":
+                first_goal += 1
 
-   # LAST GOAL
-   last = timeline[-1][0] if len(timeline) > 0 else None
+       # LAST GOAL
+       last = timeline[-1][0] if len(timeline) > 0 else None
 
-   if venue == "Home":
-       if last == "H":
-           last_goal += 1
-   else:
-       if last == "A":
-           last_goal += 1
+       if venue == "Home":
+           if last == "H":
+               last_goal += 1
+       else:
+           if last == "A":
+               last_goal += 1
 
-        score_home = 0
-        score_away = 0
-        one_zero_found = False
-        zero_one_found = False
-        checked_one_one_after_one_zero = False
-        checked_two_zero_after_one_zero = False
-        checked_one_one_after_zero_one = False
-        checked_zero_two_after_zero_one = False
+       score_home = 0
+       score_away = 0
+       one_zero_found = False
+       zero_one_found = False
+       checked_one_one_after_one_zero = False
+       checked_two_zero_after_one_zero = False
+       checked_one_one_after_zero_one = False
+       checked_zero_two_after_zero_one = False
 
-        for team_char, minute in timeline:
+       for team_char, minute in timeline:
             if team_char == "H":
                 score_home += 1
             else:
