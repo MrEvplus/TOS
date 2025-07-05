@@ -629,3 +629,60 @@ def show_goal_patterns(df, team1, team2, country, stagione):
     )
     st.markdown(f"### Distribuzione Goal Time Frame - {team2} (Away)")
     st.altair_chart(chart_away, use_container_width=True)
+
+# --------------------------------------------------------
+# COMPUTE GOAL PATTERNS TOTAL
+# --------------------------------------------------------
+def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches, total_away_matches):
+    total_matches = total_home_matches + total_away_matches
+    total_patterns = {}
+
+    for key in goal_pattern_keys():
+        if key == "P":
+            total_patterns["P"] = total_matches
+        elif key in ["Win %", "Draw %", "Loss %"]:
+            # Media delle due squadre per Win, Draw, Loss
+            if key == "Win %":
+                val = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
+            elif key == "Draw %":
+                val = (patterns_home["Draw %"] + patterns_away["Draw %"]) / 2
+            elif key == "Loss %":
+                val = (patterns_home["Loss %"] + patterns_away["Win %"]) / 2
+            total_patterns[key] = round(val, 2)
+        elif key in ["First Goal %", "Last Goal %"]:
+            # non calcoliamo questi valori nel totale
+            continue
+        else:
+            home_val = patterns_home.get(key, 0)
+            away_val = patterns_away.get(key, 0)
+            val = (
+                (home_val * total_home_matches) + (away_val * total_away_matches)
+            ) / total_matches if total_matches > 0 else 0
+            total_patterns[key] = round(val, 2)
+
+    return total_patterns
+
+# --------------------------------------------------------
+# GOAL PATTERN KEYS
+# --------------------------------------------------------
+def goal_pattern_keys():
+    keys = [
+        "P", "Win %", "Draw %", "Loss %", "First Goal %", "Last Goal %",
+        "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
+        "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
+        "2+ Goals %", "H 1st %", "D 1st %", "A 1st %",
+        "H 2nd %", "D 2nd %", "A 2nd %", "0-0 %"
+    ]
+    for start, end in timeframes():
+        keys.append(f"{start}-{end} Goals %")
+    return keys
+
+def goal_pattern_keys_without_tf():
+    keys = [
+        "P", "Win %", "Draw %", "Loss %", "0-0 %",
+        "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
+        "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
+        "2+ Goals %", "H 1st %", "D 1st %", "A 1st %",
+        "H 2nd %", "D 2nd %", "A 2nd %"
+    ]
+    return keys
