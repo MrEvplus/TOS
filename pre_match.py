@@ -26,30 +26,31 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
     - bet_type: "back" oppure "lay"
     - team: se passato, filtra solo le partite di quella squadra.
     """
+    # Se label è None → calcola su tutto il DB
     if team:
-       if label:
-           if market == "Home":
-               df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
-           elif market == "Away":
-               df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
-           elif market == "Draw":
-               df_filtered = df[(df["Label"] == label)]
-           else:
-               return 0, 0, 0
-       else:
-           if market == "Home":
-               df_filtered = df[df["Home"] == team]
-           elif market == "Away":
-               df_filtered = df[df["Away"] == team]
-           elif market == "Draw":
-               df_filtered = df
-           else:
-               return 0, 0, 0
+        if label:
+            if market == "Home":
+                df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
+            elif market == "Away":
+                df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
+            elif market == "Draw":
+                df_filtered = df[(df["Label"] == label)]
+            else:
+                return 0, 0, 0
+        else:
+            if market == "Home":
+                df_filtered = df[df["Home"] == team]
+            elif market == "Away":
+                df_filtered = df[df["Away"] == team]
+            elif market == "Draw":
+                df_filtered = df
+            else:
+                return 0, 0, 0
     else:
         if label:
-           df_filtered = df[(df["Label"] == label)]
+            df_filtered = df[(df["Label"] == label)]
         else:
-           df_filtered = df
+            df_filtered = df
 
     if df_filtered.empty:
         return 0, 0, 0
@@ -90,7 +91,7 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
             else:
                 profit -= stake
         else:
-            # LAY logic → responsabilità fissa a 1 punto
+            # LAY logic → liability fissa a 1 punto
             stake = 1 / (price - 1)
             if not won_bet:
                 profit += stake
@@ -156,7 +157,6 @@ def run_pre_match(df, db_selected):
         elif label not in df["Label"].unique():
             st.info(f"⚠️ Nessuna partita trovata nel database per il Label `{label}`. Verranno calcolate statistiche su TUTTO il campionato.")
             label = None
-            return
 
         # -------------------------------------------------------
         # BOOKIE PTS AND ROI TABLE
@@ -181,8 +181,7 @@ def run_pre_match(df, db_selected):
                 })
 
         df_bookie = pd.DataFrame(rows)
-        if not df_bookie.empty:
-            # Ordina le colonne per Home → Draw → Away
+        if not df_bookie.empty and len(df_bookie["Market"].unique()) > 0:
             df_bookie["Market"] = pd.Categorical(df_bookie["Market"], categories=["Home", "Draw", "Away"], ordered=True)
             df_bookie = df_bookie.sort_values(["Label", "Market"])
             df_pivot = df_bookie.pivot(index="Label", columns="Market")
