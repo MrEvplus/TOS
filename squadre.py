@@ -182,7 +182,10 @@ def show_goal_patterns(df, team1, team2, country, stagione):
 
     html_home = build_goal_pattern_html(patterns_home, team1, "green")
     html_away = build_goal_pattern_html(patterns_away, team2, "red")
-    html_total = build_goal_pattern_html(patterns_total, "Totale", "blue")
+    html_total = build_goal_pattern_html(
+    {k: patterns_total.get(k, 0) for k in goal_pattern_keys_without_tf()},
+    "Totale", "blue"
+    )
 
     col1, col2, col3 = st.columns(3)
 
