@@ -497,13 +497,14 @@ def compute_goal_patterns(df_team, venue, total_matches):
 # --------------------------------------------------------
 def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches, total_away_matches):
     total_matches = total_home_matches + total_away_matches
+    total_patterns = {}
+
     zero_zero_total = (
         (patterns_home.get("0-0 %", 0) * total_home_matches) +
         (patterns_away.get("0-0 %", 0) * total_away_matches)
     ) / total_matches if total_matches > 0 else 0
 
     total_patterns["0-0 %"] = round(zero_zero_total, 2)
-    total_patterns = {}
 
     win_total = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
     draw_total = (patterns_home["Draw %"] + patterns_away["Draw %"]) / 2
@@ -515,7 +516,7 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
     total_patterns["Loss %"] = round(loss_total, 2)
 
     for key in patterns_home.keys():
-        if key in ["P", "Win %", "Draw %", "Loss %"]:
+        if key in ["P", "Win %", "Draw %", "Loss %", "0-0 %"]:
             continue
         home_val = patterns_home[key]
         away_val = patterns_away[key]
@@ -525,7 +526,6 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
         total_patterns[key] = round(val, 2)
 
     return total_patterns
-
 # --------------------------------------------------------
 # TIMEFRAMES
 # --------------------------------------------------------
