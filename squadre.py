@@ -251,41 +251,55 @@ def build_goal_pattern_html(patterns, team, color):
 # --------------------------------------------------------
 # PLOT TIMEFRAME GOALS
 # --------------------------------------------------------
-def plot_timeframe_goals(tf_scored_pct, tf_conceded_pct, team):
-    data = pd.DataFrame({
-        "TimeFrame": list(tf_scored_pct.keys()),
-        "Goals Scored (%)": list(tf_scored_pct.values()),
-        "Goals Conceded (%)": list(tf_conceded_pct.values())
-    })
+import altair as alt
+import pandas as pd
 
-    df_melt = data.melt("TimeFrame", var_name="Tipo", value_name="Percentuale")
+def plot_timeframe_goals(tf_scored, tf_conceded, tf_scored_pct, tf_conceded_pct, team):
+    # build dataframe
+    data = []
+    for tf in tf_scored.keys():
+        data.append({
+            "Time Frame": tf,
+            "Type": "Goals Scored",
+            "Percentage": tf_scored_pct[tf],
+            "Count": tf_scored[tf]
+        })
+        data.append({
+            "Time Frame": tf,
+            "Type": "Goals Conceded",
+            "Percentage": tf_conceded_pct[tf],
+            "Count": tf_conceded[tf]
+        })
 
-    chart = alt.Chart(df_melt)\
-        .mark_bar()\
-        .encode(
-            x=alt.X("TimeFrame:N", sort=list(tf_scored_pct.keys()), title="Minute Intervals"),
-            y=alt.Y("Percentuale:Q", title="Percentage (%)"),
-            color=alt.Color("Tipo:N",
-                            scale=alt.Scale(
-                                domain=["Goals Scored (%)", "Goals Conceded (%)"],
-                                range=["green", "red"]
-                            )),
-            tooltip=["Tipo", "TimeFrame", "Percentuale"]
-        ).properties(
-            width=500,
-            height=200,
-            title=f"Goal Time Frame % - {team}"
-        )
+    df_tf = pd.DataFrame(data)
 
-    text = alt.Chart(df_melt)\
-        .mark_text(
-            dy=-5,
-            color="black"
-        ).encode(
-            x="TimeFrame:N",
-            y="Percentuale:Q",
-            text=alt.Text("Percentuale:Q", format=".0f")
-        )
+    chart = alt.Chart(df_tf).mark_bar().encode(
+        x=alt.X("Time Frame:N", title="Minute Intervals", sort=list(tf_scored.keys())),
+        y=alt.Y("Percentage:Q", title="Percentage (%)"),
+        color=alt.Color("Type:N",
+                        scale=alt.Scale(
+                            domain=["Goals Scored", "Goals Conceded"],
+                            range=["green", "red"]
+                        )),
+        tooltip=["Type", "Time Frame", "Percentage", "Count"]
+    ).properties(
+        width=500,
+        height=300,
+        title=f"Goal Time Frame % - {team}"
+    )
+
+    # Add text labels
+    text = alt.Chart(df_tf).mark_text(
+        align='center',
+        baseline='middle',
+        dy=-5,
+        color="black"
+    ).encode(
+        x=alt.X("Time Frame:N", sort=list(tf_scored.keys())),
+        y="Percentage:Q",
+        detail="Type:N",
+        text=alt.Text("Count:Q", format=".0f")
+    )
 
     return chart + text
 
