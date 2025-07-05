@@ -311,6 +311,9 @@ def compute_goal_patterns(df_team, venue, total_matches):
     def pct(count):
         return round((count / total_matches) * 100, 2) if total_matches > 0 else 0
 
+    def pct_sub(count, base):
+        return round((count / base) * 100, 2) if base > 0 else 0
+
     if venue == "Home":
         wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
         draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
@@ -484,11 +487,11 @@ def compute_goal_patterns(df_team, venue, total_matches):
         "First Goal %": pct(first_goal),
         "Last Goal %": pct(last_goal),
         "1-0 %": pct(one_zero),
-        "1-1 after 1-0 %": pct(one_one_after_one_zero),
-        "2-0 after 1-0 %": pct(two_zero_after_one_zero),
+        "1-1 after 1-0 %": pct_sub(one_one_after_one_zero, one_zero),
+        "2-0 after 1-0 %": pct_sub(two_zero_after_one_zero, one_zero),
         "0-1 %": pct(zero_one),
-        "1-1 after 0-1 %": pct(one_one_after_zero_one),
-        "0-2 after 0-1 %": pct(zero_two_after_zero_one),
+        "1-1 after 0-1 %": pct_sub(one_one_after_zero_one, zero_one),
+        "0-2 after 0-1 %": pct_sub(zero_two_after_zero_one, zero_one),
         "2+ Goals %": pct(two_up),
         "H 1st %": pct(ht_wins),
         "D 1st %": pct(ht_draws),
