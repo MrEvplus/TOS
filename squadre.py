@@ -210,22 +210,10 @@ def show_goal_patterns(df, team1, team2, country, stagione):
 # LOGICA PER MATCH GIOCATO
 # --------------------------------------------------------
 def is_match_played(row):
-    goals_sum = row["Home Goal FT"] + row["Away Goal FT"]
-
-    if goals_sum > 0:
-        return True
-
-    # se esiste almeno un minuto goal segnato
     if pd.notna(row["minuti goal segnato home"]) and row["minuti goal segnato home"].strip() != "":
         return True
     if pd.notna(row["minuti goal segnato away"]) and row["minuti goal segnato away"].strip() != "":
         return True
-
-    # se la partita è già nel passato → considerarla disputata anche se finita 0-0
-    dt_match = parse_datetime_excel(row)
-    if dt_match:
-        return dt_match < datetime.now()
-
     return False
 
 def parse_datetime_excel(row):
