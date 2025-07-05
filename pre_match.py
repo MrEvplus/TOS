@@ -203,7 +203,7 @@ def run_pre_match(df, db_selected):
             rows.append({
                 "Label": "League",
                 "Market": "Draw",
-                "Matches": int(league_stats["Matches"]),
+                "Matches": None,
                 "Back Win %": round(league_stats["Draw_pct"], 2),
                 "Back Pts": None,
                 "Back ROI %": None,
@@ -230,7 +230,7 @@ def run_pre_match(df, db_selected):
             rows.append({
                 "Label": squadra_casa,
                 "Market": market,
-                "Matches": matches_b,
+                "Matches": matches_b if market != "Draw" else None,
                 "Back Win %": win_pct_b,
                 "Back Pts": pts_b,
                 "Back ROI %": roi_b,
@@ -246,7 +246,7 @@ def run_pre_match(df, db_selected):
             rows.append({
                 "Label": squadra_ospite,
                 "Market": market,
-                "Matches": matches_b,
+                "Matches": matches_b if market != "Draw" else None,
                 "Back Win %": win_pct_b,
                 "Back Pts": pts_b,
                 "Back ROI %": roi_b,
@@ -257,23 +257,23 @@ def run_pre_match(df, db_selected):
 
         df_bookie = pd.DataFrame(rows)
         if not df_bookie.empty and len(df_bookie["Market"].unique()) > 0:
-           df_bookie["Market"] = pd.Categorical(
+            df_bookie["Market"] = pd.Categorical(
                 df_bookie["Market"],
                 categories=["Home", "Draw", "Away"],
                 ordered=True
-           )
- 
-           df_bookie = df_bookie.sort_values(["Label", "Market"])
+            )
 
-           df_pivot = df_bookie.pivot(index="Label", columns="Market")
+            df_bookie = df_bookie.sort_values(["Label", "Market"])
 
-           # RIMUOVI Matches → Draw
-           if ("Matches", "Draw") in df_pivot.columns:
-               df_pivot.drop(("Matches", "Draw"), axis=1, inplace=True)
+            df_pivot = df_bookie.pivot(index="Label", columns="Market")
 
-           st.dataframe(df_pivot, use_container_width=True)
-      else:
-           st.info("⚠️ Nessun dato trovato per il range di quota selezionato.")
+            # RIMUOVI Matches → Draw
+            if ("Matches", "Draw") in df_pivot.columns:
+                df_pivot.drop(("Matches", "Draw"), axis=1, inplace=True)
+
+            st.dataframe(df_pivot, use_container_width=True)
+        else:
+            st.info("⚠️ Nessun dato trovato per il range di quota selezionato.")
 
         # -------------------------------------------------------
         # CONFRONTO MACRO STATS
