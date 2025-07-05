@@ -11,14 +11,13 @@ from macros import label_match
 def label_from_odds(home_odd, away_odd):
     """
     Calcola la Label (range di quota) corrispondente alle quote inserite.
-    Simula una riga del DB per usare label_match.
+    Usa la funzione label_match dal file utils.py.
     """
     fake_row = {
-        "start_price_home": home_odd,
-        "start_price_away": away_odd
+        "Odd home": home_odd,
+        "Odd Away": away_odd
     }
     return label_match(fake_row)
-
 # -------------------------------------------
 # CALCOLA BOOKIE STATS SU DB
 # -------------------------------------------
