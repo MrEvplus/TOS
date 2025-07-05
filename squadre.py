@@ -418,23 +418,23 @@ def compute_goal_patterns(df_team, venue, total_matches):
                     checked_zero_two_after_zero_one = True
 
             elif venue == "Away":
-                if not one_zero_found and score_away == 1 and score_home == 0:
+                if not one_zero_found and score_home == 1 and score_away == 0:
                     one_zero += 1
                     one_zero_found = True
-                if one_zero_found and not checked_one_one_after_one_zero and score_away == 1 and score_home == 1:
+                if one_zero_found and not checked_one_one_after_one_zero and score_home == 1 and score_away == 1:
                     one_one_after_one_zero += 1
                     checked_one_one_after_one_zero = True
-                if one_zero_found and not checked_two_zero_after_one_zero and score_away == 2 and score_home == 0:
+                if one_zero_found and not checked_two_zero_after_one_zero and score_home == 2 and score_away == 0:
                     two_zero_after_one_zero += 1
                     checked_two_zero_after_one_zero = True
 
-                if not zero_one_found and score_away == 0 and score_home == 1:
+                if not zero_one_found and score_home == 0 and score_away == 1:
                     zero_one += 1
                     zero_one_found = True
-                if zero_one_found and not checked_one_one_after_zero_one and score_away == 1 and score_home == 1:
+                if zero_one_found and not checked_one_one_after_zero_one and score_home == 1 and score_away == 1:
                     one_one_after_zero_one += 1
                     checked_one_one_after_zero_one = True
-                if zero_one_found and not checked_zero_two_after_zero_one and score_away == 0 and score_home == 2:
+                if zero_one_found and not checked_zero_two_after_zero_one and score_home == 0 and score_away == 2:
                     zero_two_after_zero_one += 1
                     checked_zero_two_after_zero_one = True
 
