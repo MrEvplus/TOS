@@ -499,13 +499,6 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
     total_matches = total_home_matches + total_away_matches
     total_patterns = {}
 
-    zero_zero_total = (
-        (patterns_home.get("0-0 %", 0) * total_home_matches) +
-        (patterns_away.get("0-0 %", 0) * total_away_matches)
-    ) / total_matches if total_matches > 0 else 0
-
-    total_patterns["0-0 %"] = round(zero_zero_total, 2)
-
     win_total = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
     draw_total = (patterns_home["Draw %"] + patterns_away["Draw %"]) / 2
     loss_total = (patterns_home["Loss %"] + patterns_away["Win %"]) / 2
@@ -515,11 +508,21 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
     total_patterns["Draw %"] = round(draw_total, 2)
     total_patterns["Loss %"] = round(loss_total, 2)
 
-    for key in patterns_home.keys():
-        if key in ["P", "Win %", "Draw %", "Loss %", "0-0 %"]:
+    for key in goal_pattern_keys():
+        if key in ["P", "Win %", "Draw %", "Loss %"]:
             continue
-        home_val = patterns_home[key]
-        away_val = patterns_away[key]
+
+        if key == "0-0 %":
+            # calcola media ponderata per 0-0
+            zero_zero_total = (
+                (patterns_home.get("0-0 %", 0) * total_home_matches) +
+                (patterns_away.get("0-0 %", 0) * total_away_matches)
+            ) / total_matches if total_matches > 0 else 0
+            total_patterns[key] = round(zero_zero_total, 2)
+            continue
+
+        home_val = patterns_home.get(key, 0)
+        away_val = patterns_away.get(key, 0)
         val = (
             (home_val * total_home_matches) + (away_val * total_away_matches)
         ) / total_matches if total_matches > 0 else 0
