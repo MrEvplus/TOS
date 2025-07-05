@@ -47,34 +47,6 @@ def label_from_odds(home_odd, away_odd):
     return label_match(fake_row)
 
 # --------------------------------------------------------
-# CALCOLA STATS PER SQUADRA SU TUTTO IL DB
-# --------------------------------------------------------
-def compute_team_result_stats(df, team, venue):
-    """
-    Calcola Win%, Draw%, Loss% per la squadra come Home o Away.
-    """
-    if venue == "Home":
-        df_team = df[df["Home"] == team]
-        wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
-        draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
-        losses = sum(df_team["Home Goal FT"] < df_team["Away Goal FT"])
-    else:
-        df_team = df[df["Away"] == team]
-        wins = sum(df_team["Away Goal FT"] > df_team["Home Goal FT"])
-        draws = sum(df_team["Away Goal FT"] == df_team["Home Goal FT"])
-        losses = sum(df_team["Away Goal FT"] < df_team["Home Goal FT"])
-
-    total = len(df_team)
-    if total > 0:
-        win_pct = round((wins / total) * 100, 2)
-        draw_pct = round((draws / total) * 100, 2)
-        loss_pct = round((losses / total) * 100, 2)
-    else:
-        win_pct = draw_pct = loss_pct = 0
-
-    return total, win_pct, draw_pct, loss_pct
-
-# --------------------------------------------------------
 # COMPUTE BOOKIE STATS
 # --------------------------------------------------------
 def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
@@ -251,77 +223,37 @@ def run_pre_match(df, db_selected):
                 "Lay ROI %": None
             })
 
-        # Home team
-        matches, win_pct, draw_pct, loss_pct = compute_team_result_stats(df, squadra_casa, "Home")
-        rows.append({
-            "Label": squadra_casa,
-            "Market": "Home",
-            "Matches": matches,
-            "Back Win %": win_pct,
-            "Back Pts": None,
-            "Back ROI %": None,
-            "Lay Win %": None,
-            "Lay Pts": None,
-            "Lay ROI %": None
-        })
-        rows.append({
-            "Label": squadra_casa,
-            "Market": "Draw",
-            "Matches": matches,
-            "Back Win %": draw_pct,
-            "Back Pts": None,
-            "Back ROI %": None,
-            "Lay Win %": None,
-            "Lay Pts": None,
-            "Lay ROI %": None
-        })
-        rows.append({
-            "Label": squadra_casa,
-            "Market": "Away",
-            "Matches": matches,
-            "Back Win %": loss_pct,
-            "Back Pts": None,
-            "Back ROI %": None,
-            "Lay Win %": None,
-            "Lay Pts": None,
-            "Lay ROI %": None
-        })
+        # Squadra Casa
+        for market in ["Home", "Draw", "Away"]:
+            win_pct_b, pts_b, roi_b, matches_b = compute_bookie_stats(df, None, market, squadra_casa, bet_type="back")
+            win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, None, market, squadra_casa, bet_type="lay")
+            rows.append({
+                "Label": squadra_casa,
+                "Market": market,
+                "Matches": matches_b,
+                "Back Win %": win_pct_b,
+                "Back Pts": pts_b,
+                "Back ROI %": roi_b,
+                "Lay Win %": win_pct_l,
+                "Lay Pts": pts_l,
+                "Lay ROI %": roi_l,
+            })
 
-        # Away team
-        matches, win_pct, draw_pct, loss_pct = compute_team_result_stats(df, squadra_ospite, "Away")
-        rows.append({
-            "Label": squadra_ospite,
-            "Market": "Away",
-            "Matches": matches,
-            "Back Win %": win_pct,
-            "Back Pts": None,
-            "Back ROI %": None,
-            "Lay Win %": None,
-            "Lay Pts": None,
-            "Lay ROI %": None
-        })
-        rows.append({
-            "Label": squadra_ospite,
-            "Market": "Draw",
-            "Matches": matches,
-            "Back Win %": draw_pct,
-            "Back Pts": None,
-            "Back ROI %": None,
-            "Lay Win %": None,
-            "Lay Pts": None,
-            "Lay ROI %": None
-        })
-        rows.append({
-            "Label": squadra_ospite,
-            "Market": "Home",
-            "Matches": matches,
-            "Back Win %": loss_pct,
-            "Back Pts": None,
-            "Back ROI %": None,
-            "Lay Win %": None,
-            "Lay Pts": None,
-            "Lay ROI %": None
-        })
+        # Squadra Ospite
+        for market in ["Home", "Draw", "Away"]:
+            win_pct_b, pts_b, roi_b, matches_b = compute_bookie_stats(df, None, market, squadra_ospite, bet_type="back")
+            win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, None, market, squadra_ospite, bet_type="lay")
+            rows.append({
+                "Label": squadra_ospite,
+                "Market": market,
+                "Matches": matches_b,
+                "Back Win %": win_pct_b,
+                "Back Pts": pts_b,
+                "Back ROI %": roi_b,
+                "Lay Win %": win_pct_l,
+                "Lay Pts": pts_l,
+                "Lay ROI %": roi_l,
+            })
 
         df_bookie = pd.DataFrame(rows)
         if not df_bookie.empty and len(df_bookie["Market"].unique()) > 0:
