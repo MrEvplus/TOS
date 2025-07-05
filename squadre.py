@@ -351,13 +351,36 @@ def compute_goal_patterns(df_team, venue, total_matches):
     tf_scored = {f"{a}-{b}": 0 for a, b in timeframes()}
     tf_conceded = {f"{a}-{b}": 0 for a, b in timeframes()}
 
-    first_goal = last_goal = one_zero = one_one_after_one_zero = 0
+    first_goal = 0
+    last_goal = 0
+    one_zero = one_one_after_one_zero = 0
     two_zero_after_one_zero = zero_one = one_one_after_zero_one = zero_two_after_zero_one = 0
+    
 
     for _, row in df_team.iterrows():
         timeline = build_timeline(row, venue)
         if not timeline:
             continue
+
+    # FIRST GOAL
+    first = timeline[0][0] if len(timeline) > 0 else None
+
+    if venue == "Home":
+        if first == "H":
+            first_goal += 1
+    else:
+        if first == "A":
+            first_goal += 1
+
+   # LAST GOAL
+   last = timeline[-1][0] if len(timeline) > 0 else None
+
+   if venue == "Home":
+       if last == "H":
+           last_goal += 1
+   else:
+       if last == "A":
+           last_goal += 1
 
         score_home = 0
         score_away = 0
@@ -595,7 +618,6 @@ def goal_pattern_keys():
 def goal_pattern_keys_without_tf():
     keys = [
         "P", "Win %", "Draw %", "Loss %", "0-0 %",
-        "First Goal %", "Last Goal %",
         "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
         "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
         "2+ Goals %", "H 1st %", "D 1st %", "A 1st %",
