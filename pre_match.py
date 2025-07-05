@@ -32,8 +32,10 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
             df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
         elif market == "Away":
             df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
-        else:
+        elif market == "Draw":
             df_filtered = df[(df["Label"] == label)]
+        else:
+            return 0, 0, 0
     else:
         df_filtered = df[(df["Label"] == label)]
 
@@ -45,22 +47,32 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
     wins = 0
 
     for _, row in df_filtered.iterrows():
-        result_home = row["Home Goal FT"]
-        result_away = row["Away Goal FT"]
+        result_home = row.get("Home Goal FT", None)
+        result_away = row.get("Away Goal FT", None)
+
+        if result_home is None or result_away is None:
+            continue
 
         if market == "Home":
             won_bet = result_home > result_away
-            price = row["start_price_home"]
+            price = row.get("start_price_home", 0)
 
         elif market == "Draw":
             won_bet = result_home == result_away
-            price = row["start_price_draw"]
+            price = row.get("start_price_draw", 0)
 
         elif market == "Away":
             won_bet = result_away > result_home
-            price = row["start_price_away"]
+            price = row.get("start_price_away", 0)
 
-        # Calcolo back o lay
+        else:
+            # mercato sconosciuto → skip
+            continue
+
+        # Evita errori se quota mancante o zero
+        if not price or price <= 0:
+            continue
+
         if bet_type == "back":
             if won_bet:
                 profit += (price - 1) * stake
@@ -70,11 +82,9 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
         else:
             # LAY logic → bancare vuol dire incassare stake se non esce il risultato
             if not won_bet:
-                # Vincita netta = stake
                 profit += stake
                 wins += 1
             else:
-                # Perdita = (lay odds - 1) * stake
                 liability = (price - 1) * stake
                 profit -= liability
 
