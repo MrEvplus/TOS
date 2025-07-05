@@ -395,6 +395,7 @@ def compute_goal_patterns(df_team, venue, total_matches):
         # PATTERNS ANALYSIS
         # -------------------------------
 
+        # Home logic
         if venue == "Home":
             if first == "H":
                 one_zero += 1
@@ -430,9 +431,9 @@ def compute_goal_patterns(df_team, venue, total_matches):
                         zero_two_after_zero_one += 1
                         break
 
+        # Away logic
         elif venue == "Away":
             if first == "H":
-                # casa segna per prima → 1-0
                 one_zero += 1
                 score_home = 1
                 score_away = 0
@@ -450,7 +451,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
                         break
 
             elif first == "A":
-                # away segna per prima → 0-1
                 zero_one += 1
                 score_home = 0
                 score_away = 1
@@ -467,37 +467,39 @@ def compute_goal_patterns(df_team, venue, total_matches):
                         zero_two_after_zero_one += 1
                         break
 
+    # Two-up games
     two_up = sum(
         abs(row["Home Goal FT"] - row["Away Goal FT"]) >= 2
         for _, row in df_team.iterrows()
     )
 
-    ht_wins = sum(
+    # -------------------------------
+    # CALCOLO H/D/A 1st HALF
+    # -------------------------------
+    ht_home_win = sum(
         row["Home Goal 1T"] > row["Away Goal 1T"]
-        if venue == "Home"
-        else row["Away Goal 1T"] > row["Home Goal 1T"]
         for _, row in df_team.iterrows()
     )
-    ht_draws = sum(
+    ht_draw = sum(
         row["Home Goal 1T"] == row["Away Goal 1T"]
         for _, row in df_team.iterrows()
     )
-    ht_losses = total_matches - ht_wins - ht_draws
+    ht_away_win = total_matches - ht_home_win - ht_draw
 
-    sh_wins = sum(
+    # -------------------------------
+    # CALCOLO H/D/A 2nd HALF
+    # -------------------------------
+    sh_home_win = sum(
         (row["Home Goal FT"] - row["Home Goal 1T"]) >
         (row["Away Goal FT"] - row["Away Goal 1T"])
-        if venue == "Home"
-        else (row["Away Goal FT"] - row["Away Goal 1T"]) >
-             (row["Home Goal FT"] - row["Home Goal 1T"])
         for _, row in df_team.iterrows()
     )
-    sh_draws = sum(
+    sh_draw = sum(
         (row["Home Goal FT"] - row["Home Goal 1T"]) ==
         (row["Away Goal FT"] - row["Away Goal 1T"])
         for _, row in df_team.iterrows()
     )
-    sh_losses = total_matches - sh_wins - sh_draws
+    sh_away_win = total_matches - sh_home_win - sh_draw
 
     tf_scored_pct = {
         k: round((v / sum(tf_scored.values())) * 100, 2) if sum(tf_scored.values()) > 0 else 0
@@ -522,12 +524,12 @@ def compute_goal_patterns(df_team, venue, total_matches):
         "1-1 after 0-1 %": pct_sub(one_one_after_zero_one, zero_one),
         "0-2 after 0-1 %": pct_sub(zero_two_after_zero_one, zero_one),
         "2+ Goals %": pct(two_up),
-        "H 1st %": pct(ht_wins),
-        "D 1st %": pct(ht_draws),
-        "A 1st %": pct(ht_losses),
-        "H 2nd %": pct(sh_wins),
-        "D 2nd %": pct(sh_draws),
-        "A 2nd %": pct(sh_losses),
+        "H 1st %": pct(ht_home_win),
+        "D 1st %": pct(ht_draw),
+        "A 1st %": pct(ht_away_win),
+        "H 2nd %": pct(sh_home_win),
+        "D 2nd %": pct(sh_draw),
+        "A 2nd %": pct(sh_away_win),
         "0-0 %": zero_zero_pct,
     }
 
