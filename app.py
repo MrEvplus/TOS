@@ -135,4 +135,4 @@ elif menu_option == "Statistiche per Squadre":
     run_team_stats(df, db_selected)
 
 elif menu_option == "Confronto Pre Match":
-    run_pre_match()
+    run_pre_match(df, db_selected)
