@@ -502,18 +502,19 @@ def plot_timeframe_goals(tf_scored, tf_conceded, tf_scored_pct, tf_conceded_pct,
     df_tf = pd.DataFrame(data)
 
     chart = alt.Chart(df_tf).mark_bar().encode(
-        x=alt.X("Time Frame:N", sort=list(tf_scored.keys())),
+        x=alt.X("Time Frame:N", title="Minute Intervals", sort=list(tf_scored.keys())),
         y=alt.Y("Percentage:Q", title="Percentage (%)"),
         color=alt.Color("Type:N",
-                        scale=alt.Scale(
-                            domain=["Goals Scored", "Goals Conceded"],
-                            range=["green", "red"]
-                        )),
-        tooltip=["Type", "Time Frame", "Percentage", "Count"]
+                         scale=alt.Scale(
+                             domain=["Goals Scored", "Goals Conceded"],
+                             range=["green", "red"]
+                       )),
+       xOffset="Type:N",
+       tooltip=["Type", "Time Frame", "Percentage", "Count"]
     ).properties(
-        width=500,
-        height=300,
-        title=f"Goal Time Frame % - {team}"
+       width=500,
+       height=300,
+       title=f"Goal Time Frame % - {team}"
     )
 
     # Add text labels
