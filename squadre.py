@@ -205,8 +205,8 @@ def show_goal_patterns(df, team1, team2, country, stagione):
 
     # Grafico Time Frame Goals HOME
     chart_home = plot_timeframe_goals(
-        tf_scored_home=df_team1_home["tf_scored"].sum() if "tf_scored" in df_team1_home else {},
-        tf_conceded_home=df_team1_home["tf_conceded"].sum() if "tf_conceded" in df_team1_home else {},
+        tf_scored=tf_scored_home,
+        tf_conceded=tf_conceded_home,
         tf_scored_pct=tf_scored_home_pct,
         tf_conceded_pct=tf_conceded_home_pct,
         team=team1
@@ -216,8 +216,8 @@ def show_goal_patterns(df, team1, team2, country, stagione):
 
     # Grafico Time Frame Goals AWAY
     chart_away = plot_timeframe_goals(
-        tf_scored=df_team2_away["tf_scored"].sum() if "tf_scored" in df_team2_away else {},
-        tf_conceded=df_team2_away["tf_conceded"].sum() if "tf_conceded" in df_team2_away else {},
+        tf_scored=tf_scored_away,
+        tf_conceded=tf_conceded_away,
         tf_scored_pct=tf_scored_away_pct,
         tf_conceded_pct=tf_conceded_away_pct,
         team=team2
