@@ -65,7 +65,6 @@ def run_team_stats(df, db_selected):
 
         st.subheader(f"⚔️ Goal Patterns - {team_1} vs {team_2}")
         show_goal_patterns(df_filtered, team_1, team_2, db_selected, seasons_selected[0])
-
 # --------------------------------------------------------
 # MACRO STATS
 # --------------------------------------------------------
@@ -79,21 +78,19 @@ def show_team_macro_stats(df, team, venue):
         goals_for_col = "Away Goal FT"
         goals_against_col = "Home Goal FT"
 
-    # DEBUG: mostra tutte le partite home con flag se giocate
     data_debug = data.copy()
     data_debug["played_flag"] = data_debug.apply(is_match_played, axis=1)
 
     st.write("✅ TUTTE LE PARTITE FILTRATE:")
     st.dataframe(
         data_debug[[
-            "Home", "Away", "Data", "Orario", 
-            "Home Goal FT", "Away Goal FT", 
-            "minuti goal segnato home", "minuti goal segnato away", 
+            "Home", "Away", "Data", "Orario",
+            "Home Goal FT", "Away Goal FT",
+            "minuti goal segnato home", "minuti goal segnato away",
             "played_flag"
         ]]
     )
 
-    # Visualizza solo quelle escluse
     excluded = data_debug[data_debug["played_flag"] == False]
     if len(excluded) > 0:
         st.warning("⚠️ PARTITE ESCLUSE DAL CONTEGGIO:")
@@ -103,10 +100,9 @@ def show_team_macro_stats(df, team, venue):
                 "Home Goal FT", "Away Goal FT",
                 "minuti goal segnato home", "minuti goal segnato away"
             ]]
-       )
+        )
     else:
         st.success("✅ Nessuna partita esclusa dal conteggio.")
-
 
     mask_played = data.apply(is_match_played, axis=1)
     data = data[mask_played]
@@ -148,6 +144,7 @@ def show_team_macro_stats(df, team, venue):
 
     df_stats = pd.DataFrame([stats])
     st.dataframe(df_stats.set_index("Venue"), use_container_width=True)
+
 # --------------------------------------------------------
 # GOAL PATTERNS
 # --------------------------------------------------------
@@ -183,8 +180,8 @@ def show_goal_patterns(df, team1, team2, country, stagione):
     html_home = build_goal_pattern_html(patterns_home, team1, "green")
     html_away = build_goal_pattern_html(patterns_away, team2, "red")
     html_total = build_goal_pattern_html(
-    {k: patterns_total.get(k, 0) for k in goal_pattern_keys_without_tf()},
-    "Totale", "blue"
+        {k: patterns_total.get(k, 0) for k in goal_pattern_keys_without_tf()},
+        "Totale", "blue"
     )
 
     col1, col2, col3 = st.columns(3)
@@ -213,13 +210,11 @@ def show_goal_patterns(df, team1, team2, country, stagione):
 # LOGICA PER MATCH GIOCATO
 # --------------------------------------------------------
 def is_match_played(row):
-    # se c'è almeno 1 goal registrato tramite minuti, la partita è giocata
     if pd.notna(row["minuti goal segnato home"]) and row["minuti goal segnato home"].strip() != "":
         return True
     if pd.notna(row["minuti goal segnato away"]) and row["minuti goal segnato away"].strip() != "":
         return True
 
-    # se è 0-0 ma esiste un risultato FT → consideriamo giocata
     goals_home = row.get("Home Goal FT", None)
     goals_away = row.get("Away Goal FT", None)
 
@@ -227,30 +222,6 @@ def is_match_played(row):
         return True
 
     return False
-
-def parse_datetime_excel(row):
-    try:
-        data_str = str(row["Data"]).strip()
-        ora_str = str(row["Orario"]).zfill(4)
-
-        if "-" in data_str:
-            # es. 2025-03-16
-            anno, mese, giorno = map(int, data_str.split("-"))
-        elif "/" in data_str:
-            # es. 16/03/2025
-            giorno, mese, anno = map(int, data_str.split("/"))
-        else:
-            return None
-
-        ora = int(ora_str[:2])
-        minuto = int(ora_str[2:])
-
-        dt = datetime(anno, mese, giorno, ora, minuto)
-        return dt
-    except:
-        return None
-
-
 # --------------------------------------------------------
 # BUILD HTML TABLE
 # --------------------------------------------------------
@@ -317,6 +288,19 @@ def plot_timeframe_goals(tf_scored_pct, tf_conceded_pct, team):
         )
 
     return chart + text
+
+# --------------------------------------------------------
+# TIMEFRAMES
+# --------------------------------------------------------
+def timeframes():
+    return [
+        (0, 15),
+        (16, 30),
+        (31, 45),
+        (46, 60),
+        (61, 75),
+        (76, 120)
+    ]
 # --------------------------------------------------------
 # COMPUTE GOAL PATTERNS
 # --------------------------------------------------------
@@ -355,7 +339,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
     last_goal = 0
     one_zero = one_one_after_one_zero = 0
     two_zero_after_one_zero = zero_one = one_one_after_zero_one = zero_two_after_zero_one = 0
-    
 
     for _, row in df_team.iterrows():
         timeline = build_timeline(row, venue)
@@ -372,26 +355,26 @@ def compute_goal_patterns(df_team, venue, total_matches):
             if first == "A":
                 first_goal += 1
 
-       # LAST GOAL
-       last = timeline[-1][0] if len(timeline) > 0 else None
+        # LAST GOAL
+        last = timeline[-1][0] if len(timeline) > 0 else None
 
-       if venue == "Home":
-           if last == "H":
-               last_goal += 1
-       else:
-           if last == "A":
-               last_goal += 1
+        if venue == "Home":
+            if last == "H":
+                last_goal += 1
+        else:
+            if last == "A":
+                last_goal += 1
 
-       score_home = 0
-       score_away = 0
-       one_zero_found = False
-       zero_one_found = False
-       checked_one_one_after_one_zero = False
-       checked_two_zero_after_one_zero = False
-       checked_one_one_after_zero_one = False
-       checked_zero_two_after_zero_one = False
+        score_home = 0
+        score_away = 0
+        one_zero_found = False
+        zero_one_found = False
+        checked_one_one_after_one_zero = False
+        checked_two_zero_after_one_zero = False
+        checked_one_one_after_zero_one = False
+        checked_zero_two_after_zero_one = False
 
-       for team_char, minute in timeline:
+        for team_char, minute in timeline:
             if team_char == "H":
                 score_home += 1
             else:
@@ -517,7 +500,6 @@ def compute_goal_patterns(df_team, venue, total_matches):
     }
 
     return patterns, tf_scored_pct, tf_conceded_pct
-
 # --------------------------------------------------------
 # TOTALS
 # --------------------------------------------------------
@@ -536,6 +518,9 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
             elif key == "Loss %":
                 val = (patterns_home["Loss %"] + patterns_away["Win %"]) / 2
             total_patterns[key] = round(val, 2)
+        elif key in ["First Goal %", "Last Goal %"]:
+            # non calcoliamo questi valori nel Totale
+            continue
         else:
             home_val = patterns_home.get(key, 0)
             away_val = patterns_away.get(key, 0)
@@ -545,18 +530,6 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
             total_patterns[key] = round(val, 2)
 
     return total_patterns
-# --------------------------------------------------------
-# TIMEFRAMES
-# --------------------------------------------------------
-def timeframes():
-    return [
-        (0, 15),
-        (16, 30),
-        (31, 45),
-        (46, 60),
-        (61, 75),
-        (76, 120)
-    ]
 
 # --------------------------------------------------------
 # TIMELINE
@@ -604,8 +577,7 @@ def parse_goal_times(val):
 # --------------------------------------------------------
 def goal_pattern_keys():
     keys = [
-        "P", "Win %", "Draw %", "Loss %",
-        "First Goal %", "Last Goal %",
+        "P", "Win %", "Draw %", "Loss %", "First Goal %", "Last Goal %",
         "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
         "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
         "2+ Goals %", "H 1st %", "D 1st %", "A 1st %",
@@ -624,3 +596,4 @@ def goal_pattern_keys_without_tf():
         "H 2nd %", "D 2nd %", "A 2nd %"
     ]
     return keys
+
