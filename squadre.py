@@ -146,9 +146,10 @@ def show_team_macro_stats(df, team, venue):
     st.dataframe(df_stats.set_index("Venue"), use_container_width=True)
 
 # --------------------------------------------------------
-# GOAL PATTERNS
+# SHOW GOAL PATTERNS
 # --------------------------------------------------------
 def show_goal_patterns(df, team1, team2, country, stagione):
+    # Filtra le partite per le due squadre
     df_team1_home = df[
         (df["Home"] == team1) &
         (df["country"] == country) &
@@ -169,8 +170,12 @@ def show_goal_patterns(df, team1, team2, country, stagione):
     total_home_matches = len(df_team1_home)
     total_away_matches = len(df_team2_away)
 
-    patterns_home, tf_scored_home, tf_conceded_home = compute_goal_patterns(df_team1_home, "Home", total_home_matches)
-    patterns_away, tf_scored_away, tf_conceded_away = compute_goal_patterns(df_team2_away, "Away", total_away_matches)
+    patterns_home, tf_scored_home_pct, tf_conceded_home_pct = compute_goal_patterns(
+        df_team1_home, "Home", total_home_matches
+    )
+    patterns_away, tf_scored_away_pct, tf_conceded_away_pct = compute_goal_patterns(
+        df_team2_away, "Away", total_away_matches
+    )
 
     patterns_total = compute_goal_patterns_total(
         patterns_home, patterns_away,
@@ -198,12 +203,26 @@ def show_goal_patterns(df, team1, team2, country, stagione):
         st.markdown(f"### Totale")
         st.markdown(html_total, unsafe_allow_html=True)
 
+    # Grafico Time Frame Goals HOME
+    chart_home = plot_timeframe_goals(
+        tf_scored_home=df_team1_home["tf_scored"].sum() if "tf_scored" in df_team1_home else {},
+        tf_conceded_home=df_team1_home["tf_conceded"].sum() if "tf_conceded" in df_team1_home else {},
+        tf_scored_pct=tf_scored_home_pct,
+        tf_conceded_pct=tf_conceded_home_pct,
+        team=team1
+    )
     st.markdown(f"### Distribuzione Goal Time Frame - {team1} (Home)")
-    chart_home = plot_timeframe_goals(tf_scored_home, tf_conceded_home, team1)
     st.altair_chart(chart_home, use_container_width=True)
 
+    # Grafico Time Frame Goals AWAY
+    chart_away = plot_timeframe_goals(
+        tf_scored=df_team2_away["tf_scored"].sum() if "tf_scored" in df_team2_away else {},
+        tf_conceded=df_team2_away["tf_conceded"].sum() if "tf_conceded" in df_team2_away else {},
+        tf_scored_pct=tf_scored_away_pct,
+        tf_conceded_pct=tf_conceded_away_pct,
+        team=team2
+    )
     st.markdown(f"### Distribuzione Goal Time Frame - {team2} (Away)")
-    chart_away = plot_timeframe_goals(tf_scored_away, tf_conceded_away, team2)
     st.altair_chart(chart_away, use_container_width=True)
 
 # --------------------------------------------------------
