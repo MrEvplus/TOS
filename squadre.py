@@ -79,33 +79,33 @@ def show_team_macro_stats(df, team, venue):
         goals_for_col = "Away Goal FT"
         goals_against_col = "Home Goal FT"
 
-# DEBUG: mostra tutte le partite home con flag se giocate
-data_debug = data.copy()
-data_debug["played_flag"] = data_debug.apply(is_match_played, axis=1)
+    # DEBUG: mostra tutte le partite home con flag se giocate
+    data_debug = data.copy()
+    data_debug["played_flag"] = data_debug.apply(is_match_played, axis=1)
 
-st.write("✅ TUTTE LE PARTITE FILTRATE:")
-st.dataframe(
-    data_debug[[
-        "Home", "Away", "Data", "Orario", 
-        "Home Goal FT", "Away Goal FT", 
-        "minuti goal segnato home", "minuti goal segnato away", 
-        "played_flag"
-    ]]
-)
-
-# Visualizza solo quelle escluse
-excluded = data_debug[data_debug["played_flag"] == False]
-if len(excluded) > 0:
-    st.warning("⚠️ PARTITE ESCLUSE DAL CONTEGGIO:")
+    st.write("✅ TUTTE LE PARTITE FILTRATE:")
     st.dataframe(
-        excluded[[
-            "Home", "Away", "Data", "Orario",
-            "Home Goal FT", "Away Goal FT",
-            "minuti goal segnato home", "minuti goal segnato away"
+        data_debug[[
+            "Home", "Away", "Data", "Orario", 
+            "Home Goal FT", "Away Goal FT", 
+            "minuti goal segnato home", "minuti goal segnato away", 
+            "played_flag"
         ]]
     )
-else:
-    st.success("✅ Nessuna partita esclusa dal conteggio.")
+
+    # Visualizza solo quelle escluse
+    excluded = data_debug[data_debug["played_flag"] == False]
+    if len(excluded) > 0:
+        st.warning("⚠️ PARTITE ESCLUSE DAL CONTEGGIO:")
+        st.dataframe(
+            excluded[[
+                "Home", "Away", "Data", "Orario",
+                "Home Goal FT", "Away Goal FT",
+                "minuti goal segnato home", "minuti goal segnato away"
+            ]]
+       )
+    else:
+        st.success("✅ Nessuna partita esclusa dal conteggio.")
 
 
     mask_played = data.apply(is_match_played, axis=1)
