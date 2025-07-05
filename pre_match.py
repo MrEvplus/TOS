@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from utils import label_match
 
 from squadre import compute_team_macro_stats, is_match_played
 from macros import label_match
