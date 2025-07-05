@@ -499,34 +499,24 @@ def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches
     total_matches = total_home_matches + total_away_matches
     total_patterns = {}
 
-    win_total = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
-    draw_total = (patterns_home["Draw %"] + patterns_away["Draw %"]) / 2
-    loss_total = (patterns_home["Loss %"] + patterns_away["Win %"]) / 2
-
-    total_patterns["P"] = total_matches
-    total_patterns["Win %"] = round(win_total, 2)
-    total_patterns["Draw %"] = round(draw_total, 2)
-    total_patterns["Loss %"] = round(loss_total, 2)
-
     for key in goal_pattern_keys():
-        if key in ["P", "Win %", "Draw %", "Loss %"]:
-            continue
-
-        if key == "0-0 %":
-            # calcola media ponderata per 0-0
-            zero_zero_total = (
-                (patterns_home.get("0-0 %", 0) * total_home_matches) +
-                (patterns_away.get("0-0 %", 0) * total_away_matches)
+        if key == "P":
+            total_patterns["P"] = total_matches
+        elif key in ["Win %", "Draw %", "Loss %"]:
+            if key == "Win %":
+                val = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
+            elif key == "Draw %":
+                val = (patterns_home["Draw %"] + patterns_away["Draw %"]) / 2
+            elif key == "Loss %":
+                val = (patterns_home["Loss %"] + patterns_away["Win %"]) / 2
+            total_patterns[key] = round(val, 2)
+        else:
+            home_val = patterns_home.get(key, 0)
+            away_val = patterns_away.get(key, 0)
+            val = (
+                (home_val * total_home_matches) + (away_val * total_away_matches)
             ) / total_matches if total_matches > 0 else 0
-            total_patterns[key] = round(zero_zero_total, 2)
-            continue
-
-        home_val = patterns_home.get(key, 0)
-        away_val = patterns_away.get(key, 0)
-        val = (
-            (home_val * total_home_matches) + (away_val * total_away_matches)
-        ) / total_matches if total_matches > 0 else 0
-        total_patterns[key] = round(val, 2)
+            total_patterns[key] = round(val, 2)
 
     return total_patterns
 # --------------------------------------------------------
@@ -588,7 +578,7 @@ def parse_goal_times(val):
 # --------------------------------------------------------
 def goal_pattern_keys():
     keys = [
-        "P", "Win %", "Draw %", "Loss %",
+        "P", "Win %", "Draw %", "Loss %", "0-0 %",
         "First Goal %", "Last Goal %",
         "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
         "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
