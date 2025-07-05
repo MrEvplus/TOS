@@ -328,15 +328,22 @@ def compute_goal_patterns(df_team, venue, total_matches):
         wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
         draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
         losses = sum(df_team["Home Goal FT"] < df_team["Away Goal FT"])
-    zero_zero_count = sum(
-        (row["Home Goal FT"] == 0) and (row["Away Goal FT"] == 0)
-        for _, row in df_team.iterrows()
-    zero_zero_pct = round((zero_zero_count / total_matches) * 100, 2) if total_matches > 0 else 0
-    )
+
+        zero_zero_count = sum(
+            (row["Home Goal FT"] == 0) and (row["Away Goal FT"] == 0)
+            for _, row in df_team.iterrows()
+        )
     else:
         wins = sum(df_team["Away Goal FT"] > df_team["Home Goal FT"])
         draws = sum(df_team["Away Goal FT"] == df_team["Home Goal FT"])
         losses = sum(df_team["Away Goal FT"] < df_team["Home Goal FT"])
+
+        zero_zero_count = sum(
+            (row["Away Goal FT"] == 0) and (row["Home Goal FT"] == 0)
+            for _, row in df_team.iterrows()
+        )
+
+    zero_zero_pct = round((zero_zero_count / total_matches) * 100, 2) if total_matches > 0 else 0
 
     tf_scored = {f"{a}-{b}": 0 for a, b in timeframes()}
     tf_conceded = {f"{a}-{b}": 0 for a, b in timeframes()}
@@ -479,7 +486,7 @@ def compute_goal_patterns(df_team, venue, total_matches):
         "A 1st %": pct(ht_losses),
         "H 2nd %": pct(sh_wins),
         "D 2nd %": pct(sh_draws),
-        "A 2nd %": pct(sh_losses)
+        "A 2nd %": pct(sh_losses),
         "0-0 %": zero_zero_pct,
     }
 
