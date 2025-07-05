@@ -27,16 +27,29 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
     - team: se passato, filtra solo le partite di quella squadra.
     """
     if team:
-        if market == "Home":
-            df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
-        elif market == "Away":
-            df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
-        elif market == "Draw":
-            df_filtered = df[(df["Label"] == label)]
-        else:
-            return 0, 0, 0
+       if label:
+           if market == "Home":
+               df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
+           elif market == "Away":
+               df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
+           elif market == "Draw":
+               df_filtered = df[(df["Label"] == label)]
+           else:
+               return 0, 0, 0
+       else:
+           if market == "Home":
+               df_filtered = df[df["Home"] == team]
+           elif market == "Away":
+               df_filtered = df[df["Away"] == team]
+           elif market == "Draw":
+               df_filtered = df
+           else:
+               return 0, 0, 0
     else:
-        df_filtered = df[(df["Label"] == label)]
+        if label:
+           df_filtered = df[(df["Label"] == label)]
+        else:
+           df_filtered = df
 
     if df_filtered.empty:
         return 0, 0, 0
