@@ -328,6 +328,11 @@ def compute_goal_patterns(df_team, venue, total_matches):
         wins = sum(df_team["Home Goal FT"] > df_team["Away Goal FT"])
         draws = sum(df_team["Home Goal FT"] == df_team["Away Goal FT"])
         losses = sum(df_team["Home Goal FT"] < df_team["Away Goal FT"])
+    zero_zero_count = sum(
+        (row["Home Goal FT"] == 0) and (row["Away Goal FT"] == 0)
+        for _, row in df_team.iterrows()
+    zero_zero_pct = round((zero_zero_count / total_matches) * 100, 2) if total_matches > 0 else 0
+    )
     else:
         wins = sum(df_team["Away Goal FT"] > df_team["Home Goal FT"])
         draws = sum(df_team["Away Goal FT"] == df_team["Home Goal FT"])
@@ -475,6 +480,7 @@ def compute_goal_patterns(df_team, venue, total_matches):
         "H 2nd %": pct(sh_wins),
         "D 2nd %": pct(sh_draws),
         "A 2nd %": pct(sh_losses)
+        "0-0 %": zero_zero_pct,
     }
 
     return patterns, tf_scored_pct, tf_conceded_pct
@@ -484,6 +490,12 @@ def compute_goal_patterns(df_team, venue, total_matches):
 # --------------------------------------------------------
 def compute_goal_patterns_total(patterns_home, patterns_away, total_home_matches, total_away_matches):
     total_matches = total_home_matches + total_away_matches
+    zero_zero_total = (
+        (patterns_home.get("0-0 %", 0) * total_home_matches) +
+        (patterns_away.get("0-0 %", 0) * total_away_matches)
+    ) / total_matches if total_matches > 0 else 0
+
+    total_patterns["0-0 %"] = round(zero_zero_total, 2)
     total_patterns = {}
 
     win_total = (patterns_home["Win %"] + patterns_away["Loss %"]) / 2
