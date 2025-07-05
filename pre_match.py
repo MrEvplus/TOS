@@ -66,7 +66,6 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
             price = row.get("start_price_away", 0)
 
         else:
-            # mercato sconosciuto → skip
             continue
 
         # Evita errori se quota mancante o zero
@@ -99,6 +98,13 @@ def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
 # -------------------------------------------
 def run_pre_match(df, db_selected):
     st.title("⚔️ Confronto Pre Match")
+
+    # ---------------------------------------------------
+    # AGGIUNGI LA COLONNA LABEL AL DATAFRAME SE NON ESISTE
+    # ---------------------------------------------------
+    if "Label" not in df.columns:
+        df = df.copy()
+        df["Label"] = df.apply(label_match, axis=1)
 
     # Filtro squadre disponibili
     teams_available = sorted(
@@ -156,8 +162,11 @@ def run_pre_match(df, db_selected):
                 })
 
         df_bookie = pd.DataFrame(rows)
-        df_pivot = df_bookie.pivot(index="Label", columns="Market")
-        st.dataframe(df_pivot, use_container_width=True)
+        if not df_bookie.empty:
+            df_pivot = df_bookie.pivot(index="Label", columns="Market")
+            st.dataframe(df_pivot, use_container_width=True)
+        else:
+            st.info("⚠️ Nessun dato trovato per il range di quota selezionato.")
 
         # -------------------------------------------------------
         # CONFRONTO MACRO STATS
