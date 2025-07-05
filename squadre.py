@@ -578,12 +578,12 @@ def parse_goal_times(val):
 # --------------------------------------------------------
 def goal_pattern_keys():
     keys = [
-        "P", "Win %", "Draw %", "Loss %", 
+        "P", "Win %", "Draw %", "Loss %",
         "First Goal %", "Last Goal %",
         "1-0 %", "1-1 after 1-0 %", "2-0 after 1-0 %",
         "0-1 %", "1-1 after 0-1 %", "0-2 after 0-1 %",
         "2+ Goals %", "H 1st %", "D 1st %", "A 1st %",
-        "H 2nd %", "D 2nd %", "A 2nd %, "0-0 %"
+        "H 2nd %", "D 2nd %", "A 2nd %", "0-0 %"
     ]
     for start, end in timeframes():
         keys.append(f"{start}-{end} Goals %")
