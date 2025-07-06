@@ -163,12 +163,22 @@ def run_pre_match(df, db_selected):
 
 
     col1, col2, col3 = st.columns(3)
+
     with col1:
         odd_home = st.number_input("Quota Vincente Casa", min_value=1.01, step=0.01, value=2.00)
+        implied_home = round(100 / odd_home, 2)
+        st.markdown(f"**Probabilità Casa ({squadra_casa}):** {implied_home}%")
+
     with col2:
         odd_draw = st.number_input("Quota Pareggio", min_value=1.01, step=0.01, value=3.20)
+        implied_draw = round(100 / odd_draw, 2)
+        st.markdown(f"**Probabilità Pareggio:** {implied_draw}%")
+
     with col3:
         odd_away = st.number_input("Quota Vincente Ospite", min_value=1.01, step=0.01, value=3.80)
+        implied_away = round(100 / odd_away, 2)
+        st.markdown(f"**Probabilità Ospite ({squadra_ospite}):** {implied_away}%")
+
 
     if squadra_casa and squadra_ospite and squadra_casa != squadra_ospite:
         implied_home = round(100 / odd_home, 2)
