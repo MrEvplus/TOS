@@ -39,6 +39,10 @@ def run_team_stats(df, db_selected):
 
     df_filtered = df_filtered[df_filtered["Stagione"].isin(seasons_selected)]
 
+    # ✅ NUOVA SEZIONE: espander per vedere tutte le partite filtrate
+    with st.expander("🔎 Mostra tutte le partite filtrate"):
+        st.dataframe(df_filtered, use_container_width=True)
+
     teams_available = sorted(
         set(df_filtered["Home"].dropna().unique()) |
         set(df_filtered["Away"].dropna().unique())
@@ -64,7 +68,9 @@ def run_team_stats(df, db_selected):
         show_team_macro_stats(df_filtered, team_2, venue="Away")
 
         st.subheader(f"⚔️ Goal Patterns - {team_1} vs {team_2}")
-        show_goal_patterns(df_filtered, team_1, team_2, db_selected, seasons_selected[0])# --------------------------------------------------------
+        show_goal_patterns(df_filtered, team_1, team_2, db_selected, seasons_selected[0])
+
+# --------------------------------------------------------
 # MACRO STATS
 # --------------------------------------------------------
 def show_team_macro_stats(df, team, venue):
