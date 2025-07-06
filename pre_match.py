@@ -57,21 +57,15 @@ def get_label_type(label):
 # FORMATTING COLORE
 # --------------------------------------------------------
 def format_value(val, is_roi=False):
-    """
-    Valore numerico formattato:
-    - in verde se positivo
-    - in rosso se negativo
-    - neutro se zero
-
-    Se is_roi = True, aggiunge il simbolo %
-    """
+    if val is None:
+        val = 0
     suffix = "%" if is_roi else ""
     if val > 0:
         return f"🟢 +{val:.2f}{suffix}"
     elif val < 0:
         return f"🔴 {val:.2f}{suffix}"
     else:
-        return f"{val:.2f}{suffix}"
+        return f"0.00{suffix}"
 # --------------------------------------------------------
 # CALCOLO BACK / LAY STATS (versione corretta)
 # --------------------------------------------------------
