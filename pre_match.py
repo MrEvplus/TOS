@@ -105,7 +105,9 @@ def run_pre_match(df, db_selected):
 
         rows = []
 
-        # League row
+        # ---------------------------
+        # League Row
+        # ---------------------------
         if league_stats:
             row_league = {
                 "LABEL": "League",
@@ -140,7 +142,10 @@ def run_pre_match(df, db_selected):
             filtered_home = df[(df["Label"] == label) & (df["Home"] == squadra_casa)]
             matches_home = len(filtered_home)
 
-            # Calcolo % win solo se ci sono partite
+            with st.expander(f"DEBUG - Partite Home per {squadra_casa} nel Label {label}"):
+                st.write(f"Numero partite: {matches_home}")
+                st.dataframe(filtered_home)
+
             if matches_home > 0:
                 wins_home = sum(filtered_home["Home Goal FT"] > filtered_home["Away Goal FT"])
                 draws_home = sum(filtered_home["Home Goal FT"] == filtered_home["Away Goal FT"])
@@ -162,7 +167,6 @@ def run_pre_match(df, db_selected):
             row_home["BACK WIN% DRAW"] = 0
             row_home["BACK WIN% AWAY"] = 0
 
-        # Metti 0 in tutte le altre colonne per ora
         for metric in ["BACK PTS", "BACK ROI%", "Lay Win", "Lay pts", "lay ROI%"]:
             for outcome in ["HOME", "DRAW", "AWAY"]:
                 row_home[f"{metric} {outcome}"] = 0
@@ -177,6 +181,10 @@ def run_pre_match(df, db_selected):
         if label and label_type in ["Away", "Both"]:
             filtered_away = df[(df["Label"] == label) & (df["Away"] == squadra_ospite)]
             matches_away = len(filtered_away)
+
+            with st.expander(f"DEBUG - Partite Away per {squadra_ospite} nel Label {label}"):
+                st.write(f"Numero partite: {matches_away}")
+                st.dataframe(filtered_away)
 
             if matches_away > 0:
                 wins_away = sum(filtered_away["Away Goal FT"] > filtered_away["Home Goal FT"])
@@ -205,9 +213,6 @@ def run_pre_match(df, db_selected):
 
         rows.append(row_away)
 
-        # ---------------------------
-        # Stampa tabella finale
-        # ---------------------------
         df_bookie = pd.DataFrame(rows)
         st.markdown(f"#### Range di quota identificato (Label): `{label}`")
         st.dataframe(df_bookie, use_container_width=True)
