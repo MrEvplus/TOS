@@ -8,14 +8,10 @@ from macros import run_macro_stats
 # FUNZIONE PER OTTENERE LEAGUE DATA BY LABEL
 # --------------------------------------------------------
 def get_league_data_by_label(df, label):
-    """
-    Restituisce un dict con le stats della League per uno specifico Label.
-    """
     if "Label" not in df.columns:
         df = df.copy()
         df["Label"] = df.apply(label_match, axis=1)
 
-    # Costruisci campo match_result
     df["match_result"] = df.apply(
         lambda row: "Home Win" if row["Home Goal FT"] > row["Away Goal FT"]
         else "Away Win" if row["Home Goal FT"] < row["Away Goal FT"]
@@ -56,88 +52,6 @@ def get_label_type(label):
         return "Away"
     else:
         return "Both"
-
-# --------------------------------------------------------
-# COMPUTE BOOKIE STATS
-# --------------------------------------------------------
-def compute_bookie_stats(df, label, market, team=None, bet_type="back"):
-    if team:
-        if label:
-            if market == "Home":
-                df_filtered = df[(df["Label"] == label) & (df["Home"] == team)]
-            elif market == "Away":
-                df_filtered = df[(df["Label"] == label) & (df["Away"] == team)]
-            elif market == "Draw":
-                df_filtered = df[(df["Label"] == label)]
-            else:
-                return 0, 0, 0, 0
-        else:
-            if market == "Home":
-                df_filtered = df[df["Home"] == team]
-            elif market == "Away":
-                df_filtered = df[df["Away"] == team]
-            elif market == "Draw":
-                df_filtered = df
-            else:
-                return 0, 0, 0, 0
-    else:
-        if label:
-            df_filtered = df[(df["Label"] == label)]
-        else:
-            df_filtered = df
-
-    if df_filtered.empty:
-        return 0, 0, 0, 0
-
-    profit = 0
-    wins = 0
-
-    for _, row in df_filtered.iterrows():
-        result_home = row.get("Home Goal FT", None)
-        result_away = row.get("Away Goal FT", None)
-
-        if result_home is None or result_away is None:
-            continue
-
-        if market == "Home":
-            won_bet = result_home > result_away
-            price = row.get("start_price_home", 0)
-
-        elif market == "Draw":
-            won_bet = result_home == result_away
-            price = row.get("start_price_draw", 0)
-
-        elif market == "Away":
-            won_bet = result_away > result_home
-            price = row.get("start_price_away", 0)
-
-        else:
-            continue
-
-        if not price or price <= 1:
-            continue
-
-        if bet_type == "back":
-            stake = 1
-            if won_bet:
-                profit += (price - 1) * stake
-                wins += 1
-            else:
-                profit -= stake
-        else:
-            # LAY logic → liability fissa a 1 punto
-            stake = 1 / (price - 1)
-            if not won_bet:
-                profit += stake
-                wins += 1
-            else:
-                profit -= 1
-
-    matches = len(df_filtered)
-    win_pct = (wins / matches) * 100 if matches > 0 else 0
-    roi = (profit / matches) * 100 if matches > 0 else 0
-
-    return round(win_pct, 2), round(profit, 2), round(roi, 2), matches
 
 # --------------------------------------------------------
 # RUN PRE MATCH PAGE
@@ -189,12 +103,9 @@ def run_pre_match(df, db_selected):
 
         league_stats = get_league_data_by_label(df, label) if label else None
 
-        # -----------------------------
-        # Costruisci tabella finale
-        # -----------------------------
         rows = []
 
-        # League Row
+        # League row
         if league_stats:
             row_league = {
                 "LABEL": "League",
@@ -220,60 +131,83 @@ def run_pre_match(df, db_selected):
             }
             rows.append(row_league)
 
+        # ---------------------------
         # Squadra Casa
+        # ---------------------------
         row_home = {"LABEL": squadra_casa}
+
         if label and label_type in ["Home", "Both"]:
             filtered_home = df[(df["Label"] == label) & (df["Home"] == squadra_casa)]
             matches_home = len(filtered_home)
-            st.write(f"DEBUG - Partite Home per {squadra_casa} nel Label {label}: {matches_home}")
-            st.dataframe(filtered_home)
-        else:
-            matches_home = "N/A"
-        row_home["MATCHES"] = matches_home
 
-        for market in ["Home", "Draw", "Away"]:
-            if matches_home != "N/A" and matches_home > 0:
-                win_pct_b, pts_b, roi_b, _ = compute_bookie_stats(df, label, market, squadra_casa, bet_type="back")
-                win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, label, market, squadra_casa, bet_type="lay")
+            # Calcolo % win solo se ci sono partite
+            if matches_home > 0:
+                wins_home = sum(filtered_home["Home Goal FT"] > filtered_home["Away Goal FT"])
+                draws_home = sum(filtered_home["Home Goal FT"] == filtered_home["Away Goal FT"])
+                losses_home = sum(filtered_home["Home Goal FT"] < filtered_home["Away Goal FT"])
+
+                pct_win_home = round((wins_home / matches_home) * 100, 2)
+                pct_draw = round((draws_home / matches_home) * 100, 2)
+                pct_loss = round((losses_home / matches_home) * 100, 2)
             else:
-                win_pct_b = pts_b = roi_b = win_pct_l = pts_l = roi_l = 0
+                pct_win_home = pct_draw = pct_loss = 0
 
-            row_home[f"BACK WIN% {market.upper()}"] = win_pct_b
-            row_home[f"BACK PTS {market.upper()}"] = pts_b
-            row_home[f"BACK ROI% {market.upper()}"] = roi_b
-            row_home[f"Lay Win {market.upper()}"] = win_pct_l
-            row_home[f"Lay pts {market.upper()}"] = pts_l
-            row_home[f"lay ROI% {market.upper()}"] = roi_l
+            row_home["MATCHES"] = matches_home
+            row_home["BACK WIN% HOME"] = pct_win_home
+            row_home["BACK WIN% DRAW"] = pct_draw
+            row_home["BACK WIN% AWAY"] = pct_loss
+        else:
+            row_home["MATCHES"] = "N/A"
+            row_home["BACK WIN% HOME"] = 0
+            row_home["BACK WIN% DRAW"] = 0
+            row_home["BACK WIN% AWAY"] = 0
+
+        # Metti 0 in tutte le altre colonne per ora
+        for metric in ["BACK PTS", "BACK ROI%", "Lay Win", "Lay pts", "lay ROI%"]:
+            for outcome in ["HOME", "DRAW", "AWAY"]:
+                row_home[f"{metric} {outcome}"] = 0
 
         rows.append(row_home)
 
+        # ---------------------------
         # Squadra Ospite
+        # ---------------------------
         row_away = {"LABEL": squadra_ospite}
+
         if label and label_type in ["Away", "Both"]:
             filtered_away = df[(df["Label"] == label) & (df["Away"] == squadra_ospite)]
             matches_away = len(filtered_away)
-            st.write(f"DEBUG - Partite Away per {squadra_ospite} nel Label {label}: {matches_away}")
-            st.dataframe(filtered_away)
-        else:
-            matches_away = "N/A"
-        row_away["MATCHES"] = matches_away
 
-        for market in ["Home", "Draw", "Away"]:
-            if matches_away != "N/A" and matches_away > 0:
-                win_pct_b, pts_b, roi_b, _ = compute_bookie_stats(df, label, market, squadra_ospite, bet_type="back")
-                win_pct_l, pts_l, roi_l, _ = compute_bookie_stats(df, label, market, squadra_ospite, bet_type="lay")
+            if matches_away > 0:
+                wins_away = sum(filtered_away["Away Goal FT"] > filtered_away["Home Goal FT"])
+                draws_away = sum(filtered_away["Away Goal FT"] == filtered_away["Home Goal FT"])
+                losses_away = sum(filtered_away["Away Goal FT"] < filtered_away["Home Goal FT"])
+
+                pct_win_away = round((wins_away / matches_away) * 100, 2)
+                pct_draw = round((draws_away / matches_away) * 100, 2)
+                pct_loss = round((losses_away / matches_away) * 100, 2)
             else:
-                win_pct_b = pts_b = roi_b = win_pct_l = pts_l = roi_l = 0
+                pct_win_away = pct_draw = pct_loss = 0
 
-            row_away[f"BACK WIN% {market.upper()}"] = win_pct_b
-            row_away[f"BACK PTS {market.upper()}"] = pts_b
-            row_away[f"BACK ROI% {market.upper()}"] = roi_b
-            row_away[f"Lay Win {market.upper()}"] = win_pct_l
-            row_away[f"Lay pts {market.upper()}"] = pts_l
-            row_away[f"lay ROI% {market.upper()}"] = roi_l
+            row_away["MATCHES"] = matches_away
+            row_away["BACK WIN% HOME"] = pct_loss
+            row_away["BACK WIN% DRAW"] = pct_draw
+            row_away["BACK WIN% AWAY"] = pct_win_away
+        else:
+            row_away["MATCHES"] = "N/A"
+            row_away["BACK WIN% HOME"] = 0
+            row_away["BACK WIN% DRAW"] = 0
+            row_away["BACK WIN% AWAY"] = 0
+
+        for metric in ["BACK PTS", "BACK ROI%", "Lay Win", "Lay pts", "lay ROI%"]:
+            for outcome in ["HOME", "DRAW", "AWAY"]:
+                row_away[f"{metric} {outcome}"] = 0
 
         rows.append(row_away)
 
+        # ---------------------------
+        # Stampa tabella finale
+        # ---------------------------
         df_bookie = pd.DataFrame(rows)
         st.markdown(f"#### Range di quota identificato (Label): `{label}`")
         st.dataframe(df_bookie, use_container_width=True)
