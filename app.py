@@ -145,7 +145,7 @@ df.columns = (
     .str.replace(r"\s+", " ", regex=True)
 )
 
-# Crea colonna Label se non presente
+# LABEL se manca
 if "Label" not in df.columns:
     df["Label"] = df.apply(label_match, axis=1)
 
@@ -172,7 +172,7 @@ else:
     st.error("⚠️ Nessun campionato trovato nella colonna 'country' del foglio Excel selezionato.")
     st.stop()
 
-# 2. SELEZIONE MULTI-STAGIONE (dopo il filtro sul campionato)
+# 2. SELEZIONE MULTI-STAGIONE
 if "Stagione" in df.columns:
     stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
 else:
