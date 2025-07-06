@@ -65,9 +65,17 @@ def format_value(val):
         return f"{val:.2f}"
 
 # --------------------------------------------------------
-# CALCOLO BACK / LAY STATS
+# CALCOLO BACK / LAY STATS (versione corretta)
 # --------------------------------------------------------
 def calculate_back_lay(filtered_df):
+    """
+    Calcola:
+    - profitti back e lay
+    - ROI% back e lay
+    per HOME, DRAW, AWAY su tutte le righe di filtered_df.
+
+    Per il LAY, la responsabilità è fissa a 1 unità.
+    """
     profits_back = {"HOME": 0, "DRAW": 0, "AWAY": 0}
     profits_lay = {"HOME": 0, "DRAW": 0, "AWAY": 0}
     matches = len(filtered_df)
@@ -83,7 +91,7 @@ def calculate_back_lay(filtered_df):
         )
 
         for outcome in ["HOME", "DRAW", "AWAY"]:
-            # Leggi la quota giusta
+            # Leggi la quota corretta
             if outcome == "HOME":
                 price = row.get("Odd home", None)
             elif outcome == "DRAW":
@@ -105,11 +113,12 @@ def calculate_back_lay(filtered_df):
             else:
                 profits_back[outcome] -= 1
 
-            # LAY (responsabilità fissa 1 punto)
+            # LAY corretto → responsabilità = 1
+            stake = 1 / (price - 1)
             if result != outcome:
-                profits_lay[outcome] += 1
+                profits_lay[outcome] += stake
             else:
-                profits_lay[outcome] -= (price - 1)
+                profits_lay[outcome] -= 1
 
     rois_back = {}
     rois_lay = {}
