@@ -3,6 +3,7 @@ import pandas as pd
 from utils import label_match
 from squadre import compute_team_macro_stats
 from macros import run_macro_stats
+from utils import load_data_from_dropbox
 
 # --------------------------------------------------------
 # FUNZIONE PER OTTENERE LEAGUE DATA BY LABEL
