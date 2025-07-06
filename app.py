@@ -48,25 +48,35 @@ if origine_dati == "Dropbox":
         st.stop()
 
     # -----------------------------
-    # STEP 1 - Trova campionati
+    # STEP 1 - Raggruppa campionati
     # -----------------------------
     campionati = set()
     for file in db_files:
-        nome = file.split("_")[0].upper()
-        campionati.add(nome)
+        nome_split = file.split("_")
+        if len(nome_split) >= 2:
+            campionato = f"{nome_split[0].upper()}_{nome_split[1]}"
+            campionati.add(campionato)
     campionati_disponibili = sorted(list(campionati))
 
     campionato_scelto = st.sidebar.selectbox(
         "Seleziona Campionato:",
-        campionati_disponibili
+        [""] + campionati_disponibili,
+        index=0
     )
 
     # -----------------------------
-    # STEP 2 - Filtra i file del campionato
+    # STOP se non hai scelto il campionato
+    # -----------------------------
+    if campionato_scelto == "":
+        st.info("ℹ️ Seleziona un campionato per procedere al caricamento dati.")
+        st.stop()
+
+    # -----------------------------
+    # STEP 2 - Filtra i file del campionato scelto
     # -----------------------------
     files_da_caricare = [
         f for f in db_files
-        if f.lower().startswith(campionato_scelto.lower())
+        if f.upper().startswith(campionato_scelto.upper())
     ]
 
     if not files_da_caricare:
@@ -74,7 +84,7 @@ if origine_dati == "Dropbox":
         st.stop()
 
     # -----------------------------
-    # STEP 3 - Carica solo i file del campionato selezionato
+    # STEP 3 - Carica i file scelti
     # -----------------------------
     lista_df = []
     for file in files_da_caricare:
@@ -83,7 +93,7 @@ if origine_dati == "Dropbox":
             xls = read_excel_from_dropbox(dropbox_path)
             sheet_name = xls.sheet_names[0]
             df_tmp = pd.read_excel(xls, sheet_name=sheet_name)
-            df_tmp["__file"] = file  # traccia origine
+            df_tmp["__file"] = file
             lista_df.append(df_tmp)
             st.sidebar.success(f"✅ Caricato {file}")
         except Exception as e:
@@ -93,9 +103,11 @@ if origine_dati == "Dropbox":
         st.error("⚠ Nessun file Excel valido caricato.")
         st.stop()
 
-    # Unisci tutti i DataFrame caricati
+    # Unisci i DataFrame
     df = pd.concat(lista_df, ignore_index=True)
     st.sidebar.write(f"✅ Righe totali caricate per {campionato_scelto}: {len(df)}")
+
+    db_selected = campionato_scelto
 
 # -------------------------------------------------------
 # BRANCH: UPLOAD MANUALE
