@@ -153,8 +153,14 @@ def run_pre_match(df, db_selected):
         set(df[df["country"] == db_selected]["Away"].dropna().unique())
     )
 
-    squadra_casa = st.selectbox("Seleziona Squadra Casa", options=teams_available)
-    squadra_ospite = st.selectbox("Seleziona Squadra Ospite", options=teams_available)
+    col1, col2 = st.columns(2)
+
+    with col1:
+        squadra_casa = st.selectbox("Seleziona Squadra Casa", options=teams_available)
+
+    with col2:
+        squadra_ospite = st.selectbox("Seleziona Squadra Ospite", options=teams_available)
+
 
     col1, col2, col3 = st.columns(3)
     with col1:
