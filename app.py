@@ -141,6 +141,20 @@ df.columns = (
     .str.replace(r"\s+", " ", regex=True)
 )
 
+# SELEZIONE MULTI-STAGIONE
+if "Stagione" in df.columns:
+    stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
+else:
+    stagioni_disponibili = []
+
+if stagioni_disponibili:
+    stagioni_scelte = st.sidebar.multiselect(
+        "Seleziona le stagioni da includere nell'analisi:",
+        options=stagioni_disponibili,
+        default=stagioni_disponibili
+    )
+    df = df[df["Stagione"].isin(stagioni_scelte)]
+
 # Crea colonna Label se non presente
 if "Label" not in df.columns:
     df["Label"] = df.apply(label_match, axis=1)
