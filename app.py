@@ -141,25 +141,11 @@ df.columns = (
     .str.replace(r"\s+", " ", regex=True)
 )
 
-# SELEZIONE MULTI-STAGIONE
-if "Stagione" in df.columns:
-    stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
-else:
-    stagioni_disponibili = []
-
-if stagioni_disponibili:
-    stagioni_scelte = st.sidebar.multiselect(
-        "Seleziona le stagioni da includere nell'analisi:",
-        options=stagioni_disponibili,
-        default=stagioni_disponibili
-    )
-    df = df[df["Stagione"].isin(stagioni_scelte)]
-
 # Crea colonna Label se non presente
 if "Label" not in df.columns:
     df["Label"] = df.apply(label_match, axis=1)
 
-# Normalizza nomi campionati
+# 1. SELEZIONE CAMPIONATO
 if "country" in df.columns:
     df["country"] = (
         df["country"]
@@ -177,9 +163,27 @@ if campionati_disponibili:
         "Seleziona Campionato:",
         campionati_disponibili
     )
+    df = df[df["country"] == db_selected]
 else:
     st.error("⚠️ Nessun campionato trovato nella colonna 'country' del foglio Excel selezionato.")
     st.stop()
+
+# 2. SELEZIONE MULTI-STAGIONE (dopo il filtro sul campionato)
+if "Stagione" in df.columns:
+    stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
+else:
+    stagioni_disponibili = []
+
+if stagioni_disponibili:
+    stagioni_scelte = st.sidebar.multiselect(
+        "Seleziona le stagioni da includere nell'analisi:",
+        options=stagioni_disponibili,
+        default=stagioni_disponibili
+    )
+    if not stagioni_scelte:
+        stagioni_scelte = stagioni_disponibili
+
+    df = df[df["Stagione"].isin(stagioni_scelte)]
 
 # Mostra colonne disponibili per debug
 st.write("✅ Colonne presenti nel foglio selezionato:")
