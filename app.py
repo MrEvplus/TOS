@@ -5,7 +5,7 @@ import os
 from macros import run_macro_stats
 from squadre import run_team_stats
 from pre_match import run_pre_match
-from utils import read_excel_from_dropbox, list_files_in_dropbox_folder, label_match
+from utils import load_data_from_dropbox, label_match
 
 # -------------------------------------------------------
 # CONFIGURAZIONE PAGINA
@@ -38,76 +38,7 @@ origine_dati = st.sidebar.radio(
 # BRANCH: DROPBOX
 # -------------------------------------------------------
 if origine_dati == "Dropbox":
-    st.sidebar.markdown("### 🌐 Origine: Dropbox")
-
-    DROPBOX_FOLDER = "/Database/"
-    db_files = list_files_in_dropbox_folder(DROPBOX_FOLDER)
-
-    if not db_files:
-        st.warning("⚠ Nessun file trovato su Dropbox.")
-        st.stop()
-
-    # -----------------------------
-    # STEP 1 - Raggruppa campionati
-    # -----------------------------
-    campionati = set()
-    for file in db_files:
-        nome_split = file.split("_")
-        if len(nome_split) >= 2:
-            campionato = f"{nome_split[0].upper()}_{nome_split[1]}"
-            campionati.add(campionato)
-    campionati_disponibili = sorted(list(campionati))
-
-    campionato_scelto = st.sidebar.selectbox(
-        "Seleziona Campionato:",
-        [""] + campionati_disponibili,
-        index=0
-    )
-
-    # -----------------------------
-    # STOP se non hai scelto il campionato
-    # -----------------------------
-    if campionato_scelto == "":
-        st.info("ℹ️ Seleziona un campionato per procedere al caricamento dati.")
-        st.stop()
-
-    # -----------------------------
-    # STEP 2 - Filtra i file del campionato scelto
-    # -----------------------------
-    files_da_caricare = [
-        f for f in db_files
-        if f.upper().startswith(campionato_scelto.upper())
-    ]
-
-    if not files_da_caricare:
-        st.warning(f"⚠ Nessun file trovato per il campionato selezionato: {campionato_scelto}")
-        st.stop()
-
-    # -----------------------------
-    # STEP 3 - Carica i file scelti
-    # -----------------------------
-    lista_df = []
-    for file in files_da_caricare:
-        dropbox_path = DROPBOX_FOLDER + file
-        try:
-            xls = read_excel_from_dropbox(dropbox_path)
-            sheet_name = xls.sheet_names[0]
-            df_tmp = pd.read_excel(xls, sheet_name=sheet_name)
-            df_tmp["__file"] = file
-            lista_df.append(df_tmp)
-            st.sidebar.success(f"✅ Caricato {file}")
-        except Exception as e:
-            st.sidebar.warning(f"⚠ Errore su {file}: {e}")
-
-    if not lista_df:
-        st.error("⚠ Nessun file Excel valido caricato.")
-        st.stop()
-
-    # Unisci i DataFrame
-    df = pd.concat(lista_df, ignore_index=True)
-    st.sidebar.write(f"✅ Righe totali caricate per {campionato_scelto}: {len(df)}")
-
-    db_selected = campionato_scelto
+    df, db_selected = load_data_from_dropbox()
 
 # -------------------------------------------------------
 # BRANCH: UPLOAD MANUALE
@@ -162,6 +93,29 @@ else:
 
         df = pd.read_excel(DATA_PATH, sheet_name=sheet_name)
 
+        # Trova campionati disponibili
+        if "country" in df.columns:
+            df["country"] = (
+                df["country"]
+                .fillna("")
+                .astype(str)
+                .str.strip()
+                .str.upper()
+            )
+            campionati_disponibili = sorted(df["country"].unique())
+        else:
+            campionati_disponibili = []
+
+        if campionati_disponibili:
+            db_selected = st.sidebar.selectbox(
+                "Seleziona Campionato:",
+                campionati_disponibili
+            )
+            df = df[df["country"] == db_selected]
+        else:
+            st.error("⚠️ Nessun campionato trovato nella colonna 'country' del foglio Excel selezionato.")
+            st.stop()
+
     except Exception as e:
         st.error(f"Errore nel caricamento file: {e}")
         st.stop()
@@ -182,32 +136,6 @@ df.columns = (
 # Crea colonna Label se non presente
 if "Label" not in df.columns:
     df["Label"] = df.apply(label_match, axis=1)
-
-# SELEZIONE CAMPIONATO (già fatto per Dropbox)
-if origine_dati == "Upload Manuale":
-    if "country" in df.columns:
-        df["country"] = (
-            df["country"]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-            .str.upper()
-        )
-        campionati_disponibili = sorted(df["country"].unique())
-    else:
-        campionati_disponibili = []
-
-    if campionati_disponibili:
-        db_selected = st.sidebar.selectbox(
-            "Seleziona Campionato:",
-            campionati_disponibili
-        )
-        df = df[df["country"] == db_selected]
-    else:
-        st.error("⚠️ Nessun campionato trovato nella colonna 'country' del foglio Excel selezionato.")
-        st.stop()
-else:
-    db_selected = campionato_scelto
 
 # SELEZIONE MULTI-STAGIONE
 if "Stagione" in df.columns:
