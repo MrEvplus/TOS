@@ -82,6 +82,8 @@ def load_data_from_dropbox():
             sheet_name = xls.sheet_names[0]
             df_tmp = pd.read_excel(xls, sheet_name=sheet_name)
             df_tmp["__file"] = file
+            # 👇 SOVRASCRIVE IL CAMPO COUNTRY
+            df_tmp["country"] = campionato_scelto
             lista_df.append(df_tmp)
             st.sidebar.success(f"✅ Caricato {file}")
         except Exception as e:
