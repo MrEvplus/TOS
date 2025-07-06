@@ -2,6 +2,8 @@ import numpy as np
 import dropbox
 import pandas as pd
 import io
+import streamlit as st
+
 
 # Legge il token dai secrets
 DROPBOX_ACCESS_TOKEN = st.secrets["DROPBOX_ACCESS_TOKEN"]
