@@ -56,14 +56,22 @@ def get_label_type(label):
 # --------------------------------------------------------
 # FORMATTING COLORE
 # --------------------------------------------------------
-def format_value(val):
-    if val > 0:
-        return f"🟢 +{val:.2f}"
-    elif val < 0:
-        return f"🔴 {val:.2f}"
-    else:
-        return f"{val:.2f}"
+def format_value(val, is_roi=False):
+    """
+    Valore numerico formattato:
+    - in verde se positivo
+    - in rosso se negativo
+    - neutro se zero
 
+    Se is_roi = True, aggiunge il simbolo %
+    """
+    suffix = "%" if is_roi else ""
+    if val > 0:
+        return f"🟢 +{val:.2f}{suffix}"
+    elif val < 0:
+        return f"🔴 {val:.2f}{suffix}"
+    else:
+        return f"{val:.2f}{suffix}"
 # --------------------------------------------------------
 # CALCOLO BACK / LAY STATS (versione corretta)
 # --------------------------------------------------------
@@ -203,9 +211,9 @@ def run_pre_match(df, db_selected):
             }
             for outcome in ["HOME", "DRAW", "AWAY"]:
                 row_league[f"BACK PTS {outcome}"] = format_value(profits_back[outcome])
-                row_league[f"BACK ROI% {outcome}"] = format_value(rois_back[outcome])
+                row_league[f"BACK ROI% {outcome}"] = format_value(rois_back[outcome], is_roi=True)
                 row_league[f"Lay pts {outcome}"] = format_value(profits_lay[outcome])
-                row_league[f"lay ROI% {outcome}"] = format_value(rois_lay[outcome])
+                row_league[f"lay ROI% {outcome}"] = format_value(rois_lay[outcome], is_roi=True)
             rows.append(row_league)
 
         # ---------------------------
