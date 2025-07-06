@@ -244,14 +244,17 @@ def run_pre_match(df, db_selected):
 
             for outcome in ["HOME", "DRAW", "AWAY"]:
                 row_home[f"BACK PTS {outcome}"] = format_value(profits_back[outcome])
-                row_home[f"BACK ROI% {outcome}"] = format_value(rois_back[outcome])
+                row_home[f"BACK ROI% {outcome}"] = format_value(rois_back[outcome], is_roi=True)
                 row_home[f"Lay pts {outcome}"] = format_value(profits_lay[outcome])
-                row_home[f"lay ROI% {outcome}"] = format_value(rois_lay[outcome])
+                row_home[f"lay ROI% {outcome}"] = format_value(rois_lay[outcome], is_roi=True)
         else:
             row_home["MATCHES"] = "N/A"
-            for col in ["BACK WIN%", "BACK PTS", "BACK ROI%", "Lay pts", "lay ROI%"]:
-                for outcome in ["HOME", "DRAW", "AWAY"]:
-                    row_home[f"{col} {outcome}"] = 0
+            for outcome in ["HOME", "DRAW", "AWAY"]:
+                row_home[f"BACK WIN% {outcome}"] = 0
+                row_home[f"BACK PTS {outcome}"] = format_value(0)
+                row_home[f"BACK ROI% {outcome}"] = format_value(0, is_roi=True)
+                row_home[f"Lay pts {outcome}"] = format_value(0)
+                row_home[f"lay ROI% {outcome}"] = format_value(0, is_roi=True)
         rows.append(row_home)
 
         # ---------------------------
@@ -288,14 +291,17 @@ def run_pre_match(df, db_selected):
 
             for outcome in ["HOME", "DRAW", "AWAY"]:
                 row_away[f"BACK PTS {outcome}"] = format_value(profits_back[outcome])
-                row_away[f"BACK ROI% {outcome}"] = format_value(rois_back[outcome])
+                row_away[f"BACK ROI% {outcome}"] = format_value(rois_back[outcome], is_roi=True)
                 row_away[f"Lay pts {outcome}"] = format_value(profits_lay[outcome])
-                row_away[f"lay ROI% {outcome}"] = format_value(rois_lay[outcome])
+                row_away[f"lay ROI% {outcome}"] = format_value(rois_lay[outcome], is_roi=True)
         else:
             row_away["MATCHES"] = "N/A"
-            for col in ["BACK WIN%", "BACK PTS", "BACK ROI%", "Lay pts", "lay ROI%"]:
-                for outcome in ["HOME", "DRAW", "AWAY"]:
-                    row_away[f"{col} {outcome}"] = 0
+            for outcome in ["HOME", "DRAW", "AWAY"]:
+                row_away[f"BACK WIN% {outcome}"] = 0
+                row_away[f"BACK PTS {outcome}"] = format_value(0)
+                row_away[f"BACK ROI% {outcome}"] = format_value(0, is_roi=True)
+                row_away[f"Lay pts {outcome}"] = format_value(0)
+                row_away[f"lay ROI% {outcome}"] = format_value(0, is_roi=True)
         rows.append(row_away)
 
         # ------------------------------------------
