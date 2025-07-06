@@ -1,6 +1,7 @@
 streamlit
-plotly
 pandas
 numpy
+plotly
 openpyxl
 streamlit-aggrid
+dropbox
