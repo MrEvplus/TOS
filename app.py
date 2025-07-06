@@ -5,15 +5,18 @@ import os
 from macros import run_macro_stats
 from squadre import run_team_stats
 from pre_match import run_pre_match
+from utils import read_excel_from_dropbox, list_files_in_dropbox_folder, label_match
 
-DATA_FOLDER = "data"
-
+# -------------------------------------------------------
+# CONFIGURAZIONE PAGINA
+# -------------------------------------------------------
 st.set_page_config(
     page_title="Trading Dashboard",
     layout="wide"
 )
 
 st.sidebar.title("📊 Trading Dashboard")
+
 menu_option = st.sidebar.radio(
     "Naviga tra le sezioni:",
     [
@@ -23,78 +26,126 @@ menu_option = st.sidebar.radio(
     ]
 )
 
-# Crea cartella data se non esiste
-if not os.path.exists(DATA_FOLDER):
-    os.makedirs(DATA_FOLDER)
-
-# Upload file
-st.sidebar.header("📥 Upload Database")
-
-uploaded_files = st.sidebar.file_uploader(
-    "Carica uno o più database Excel:",
-    type=["xlsx"],
-    accept_multiple_files=True
+# -------------------------------------------------------
+# SELEZIONE ORIGINE DATI (Dropbox o Locale)
+# -------------------------------------------------------
+origine_dati = st.sidebar.radio(
+    "Seleziona origine dati:",
+    ["Dropbox", "Upload Manuale"]
 )
 
-if uploaded_files:
-    for uploaded_file in uploaded_files:
-        save_path = os.path.join(DATA_FOLDER, uploaded_file.name)
-        with open(save_path, "wb") as f:
-            f.write(uploaded_file.read())
-    st.sidebar.success("✅ File caricati e salvati!")
+# -------------------------------------------------------
+# BRANCH: DROPBOX
+# -------------------------------------------------------
+if origine_dati == "Dropbox":
+    st.sidebar.markdown("### 🌐 Origine: Dropbox")
 
-# Lista file presenti
-db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
-if not db_files:
-    st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
-    st.stop()
+    DROPBOX_FOLDER = "/Database/"
 
-# Seleziona database
-file_selected = st.sidebar.selectbox(
-    "Seleziona File Excel:",
-    db_files
-)
+    # Lista file su Dropbox
+    db_files = list_files_in_dropbox_folder(DROPBOX_FOLDER)
 
-DATA_PATH = os.path.join(DATA_FOLDER, file_selected)
+    if not db_files:
+        st.warning("⚠ Nessun file trovato su Dropbox.")
+        st.stop()
 
-try:
-    # Carica Excel per vedere i fogli disponibili
-    xls = pd.ExcelFile(DATA_PATH)
+    file_selected = st.sidebar.selectbox("Seleziona File Excel:", db_files)
 
-    st.sidebar.success("✅ Database caricato automaticamente!")
+    dropbox_path = DROPBOX_FOLDER + file_selected
+
+    # Scarica Excel da Dropbox
+    xls = read_excel_from_dropbox(dropbox_path)
+
+    st.sidebar.success("✅ Database caricato da Dropbox!")
     st.sidebar.write("✅ Fogli disponibili nel file Excel:")
     st.sidebar.write(xls.sheet_names)
 
-    # Permetti scelta foglio
     sheet_name = st.sidebar.selectbox(
         "Scegli il foglio da elaborare:",
         xls.sheet_names
     )
 
     # Leggi il foglio selezionato
-    df = pd.read_excel(DATA_PATH, sheet_name=sheet_name)
+    df = pd.read_excel(xls, sheet_name=sheet_name)
 
-    # Pulisci nomi colonne
-    df.columns = (
-        df.columns
-        .astype(str)
-        .str.strip()
-        .str.replace(r"[\n\r\t]", "", regex=True)
-        .str.replace(r"\s+", " ", regex=True)
+# -------------------------------------------------------
+# BRANCH: UPLOAD MANUALE
+# -------------------------------------------------------
+else:
+    st.sidebar.markdown("### 📂 Origine: Upload Manuale")
+
+    DATA_FOLDER = "data"
+
+    # Crea cartella se non esiste
+    if not os.path.exists(DATA_FOLDER):
+        os.makedirs(DATA_FOLDER)
+
+    # Upload file
+    st.sidebar.header("📥 Upload Database")
+
+    uploaded_files = st.sidebar.file_uploader(
+        "Carica uno o più database Excel:",
+        type=["xlsx"],
+        accept_multiple_files=True
     )
 
-    st.sidebar.success("✅ Foglio Excel caricato correttamente!")
+    if uploaded_files:
+        for uploaded_file in uploaded_files:
+            save_path = os.path.join(DATA_FOLDER, uploaded_file.name)
+            with open(save_path, "wb") as f:
+                f.write(uploaded_file.read())
+        st.sidebar.success("✅ File caricati e salvati!")
 
-    from utils import label_match
+    # Leggi lista file disponibili localmente
+    db_files = [f for f in os.listdir(DATA_FOLDER) if f.endswith(".xlsx")]
 
-    if "Label" not in df.columns:
-        df["Label"] = df.apply(label_match, axis=1)
+    if not db_files:
+        st.warning("⚠ Nessun database presente. Carica il file Excel per iniziare.")
+        st.stop()
 
-except Exception as e:
-    st.error(f"Errore nel caricamento file: {e}")
-    st.stop()
+    file_selected = st.sidebar.selectbox(
+        "Seleziona File Excel:",
+        db_files
+    )
 
-# Normalizza e trova campionati
+    DATA_PATH = os.path.join(DATA_FOLDER, file_selected)
+
+    try:
+        xls = pd.ExcelFile(DATA_PATH)
+
+        st.sidebar.success("✅ Database caricato dal disco!")
+        st.sidebar.write("✅ Fogli disponibili nel file Excel:")
+        st.sidebar.write(xls.sheet_names)
+
+        sheet_name = st.sidebar.selectbox(
+            "Scegli il foglio da elaborare:",
+            xls.sheet_names
+        )
+
+        df = pd.read_excel(DATA_PATH, sheet_name=sheet_name)
+
+    except Exception as e:
+        st.error(f"Errore nel caricamento file: {e}")
+        st.stop()
+
+# -------------------------------------------------------
+# COMMON LOGIC (uguale per entrambe le origini)
+# -------------------------------------------------------
+
+# Pulizia nomi colonne
+df.columns = (
+    df.columns
+    .astype(str)
+    .str.strip()
+    .str.replace(r"[\n\r\t]", "", regex=True)
+    .str.replace(r"\s+", " ", regex=True)
+)
+
+# Crea colonna Label se non presente
+if "Label" not in df.columns:
+    df["Label"] = df.apply(label_match, axis=1)
+
+# Normalizza nomi campionati
 if "country" in df.columns:
     df["country"] = (
         df["country"]
@@ -103,7 +154,6 @@ if "country" in df.columns:
         .str.strip()
         .str.upper()
     )
-
     campionati_disponibili = sorted(df["country"].unique())
 else:
     campionati_disponibili = []
@@ -132,12 +182,13 @@ if "Data" in df.columns:
     today = pd.Timestamp.today().normalize()
     df = df[(df["Data"].isna()) | (df["Data"] <= today)]
 
-# Chiamata al modulo selezionato
+# -------------------------------------------------------
+# CHIAMATA MODULI
+# -------------------------------------------------------
+
 if menu_option == "Macro Stats per Campionato":
     run_macro_stats(df, db_selected)
-
 elif menu_option == "Statistiche per Squadre":
     run_team_stats(df, db_selected)
-
 elif menu_option == "Confronto Pre Match":
     run_pre_match(df, db_selected)

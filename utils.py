@@ -1,4 +1,26 @@
 import numpy as np
+import dropbox
+import pandas as pd
+import io
+
+# Legge il token dai secrets
+DROPBOX_ACCESS_TOKEN = st.secrets["DROPBOX_ACCESS_TOKEN"]
+
+def read_excel_from_dropbox(dropbox_path):
+    dbx = dropbox.Dropbox(DROPBOX_ACCESS_TOKEN)
+    _, res = dbx.files_download(path=dropbox_path)
+    file_like = io.BytesIO(res.content)
+    xls = pd.ExcelFile(file_like)
+    return xls
+
+def list_files_in_dropbox_folder(folder_path="/Database/"):
+    dbx = dropbox.Dropbox(DROPBOX_ACCESS_TOKEN)
+    result = dbx.files_list_folder(folder_path)
+    files = []
+    for entry in result.entries:
+        if isinstance(entry, dropbox.files.FileMetadata):
+            files.append(entry.name)
+    return files
 
 def label_match(row):
     h = row.get("Odd home", np.nan)
@@ -32,3 +54,4 @@ def extract_minutes(series):
                 if part.isdigit():
                     all_minutes.append(int(part))
     return all_minutes
+
