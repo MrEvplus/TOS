@@ -185,11 +185,7 @@ def run_pre_match(df, db_selected):
         implied_draw = round(100 / odd_draw, 2)
         implied_away = round(100 / odd_away, 2)
 
-        st.markdown(f"### 🎯 Probabilità implicite dalle quote:")
-        st.write(f"- **Casa ({squadra_casa}):** {implied_home}%")
-        st.write(f"- **Pareggio:** {implied_draw}%")
-        st.write(f"- **Ospite ({squadra_ospite}):** {implied_away}%")
-
+        
         label = label_from_odds(odd_home, odd_away)
         label_type = get_label_type(label)
 
