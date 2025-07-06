@@ -4,6 +4,12 @@ import numpy as np
 import altair as alt
 from datetime import datetime
 
+import streamlit as st
+import pandas as pd
+import numpy as np
+import altair as alt
+from datetime import datetime
+
 # --------------------------------------------------------
 # ENTRY POINT
 # --------------------------------------------------------
@@ -38,10 +44,6 @@ def run_team_stats(df, db_selected):
         st.stop()
 
     df_filtered = df_filtered[df_filtered["Stagione"].isin(seasons_selected)]
-
-    # ✅ NUOVA SEZIONE: espander per vedere tutte le partite filtrate
-    with st.expander("🔎 Mostra tutte le partite filtrate"):
-        st.dataframe(df_filtered, use_container_width=True)
 
     teams_available = sorted(
         set(df_filtered["Home"].dropna().unique()) |
@@ -86,15 +88,21 @@ def show_team_macro_stats(df, team, venue):
     data_debug = data.copy()
     data_debug["played_flag"] = data_debug.apply(is_match_played, axis=1)
 
-    st.write("✅ TUTTE LE PARTITE FILTRATE:")
-    st.dataframe(
-        data_debug[[
-            "Home", "Away", "Data", "Orario",
-            "Home Goal FT", "Away Goal FT",
-            "minuti goal segnato home", "minuti goal segnato away",
-            "played_flag"
-        ]]
-    )
+    # ✅ ESPANDER PER LE PARTITE FILTRATE DELLA SQUADRA SELEZIONATA
+    if not data_debug.empty:
+        with st.expander(f"🔎 Mostra tutte le partite filtrate di {team}"):
+            st.dataframe(
+                data_debug[[
+                    "Home", "Away", "Data", "Orario",
+                    "Home Goal FT", "Away Goal FT",
+                    "minuti goal segnato home", "minuti goal segnato away",
+                    "played_flag"
+                ]],
+                use_container_width=True
+            )
+    else:
+        st.info(f"⚠️ Nessuna partita trovata per la squadra {team}.")
+        return
 
     excluded = data_debug[data_debug["played_flag"] == False]
     if len(excluded) > 0:
@@ -150,6 +158,17 @@ def show_team_macro_stats(df, team, venue):
     df_stats = pd.DataFrame([stats])
     st.dataframe(df_stats.set_index("Venue"), use_container_width=True)
 
+# --------------------------------------------------------
+# RESTO DELLE FUNZIONI
+# --------------------------------------------------------
+
+# Tutte le altre funzioni (is_match_played, build_timeline, etc.)
+# rimangono identiche al tuo file originale. Non le riscrivo qui
+# solo per evitare ripetizioni, ma **vanno lasciate nel file**!
+
+# Esempio di funzione che va mantenuta:
+# def is_match_played(row):
+#     ...
 # --------------------------------------------------------
 # LOGICA PER MATCH GIOCATO
 # --------------------------------------------------------
