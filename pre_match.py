@@ -84,26 +84,23 @@ def calculate_back_lay(filtered_df):
 
         for outcome in ["HOME", "DRAW", "AWAY"]:
             if outcome == "HOME":
-                price = row.get("start_price_home", 0)
-                won = (result == "HOME")
+                price = row.get("Odd home", None)
             elif outcome == "DRAW":
-                price = row.get("start_price_draw", 0)
-                won = (result == "DRAW")
+                price = row.get("Odd Draw", None)
             elif outcome == "AWAY":
-                price = row.get("start_price_away", 0)
-                won = (result == "AWAY")
+                price = row.get("Odd Away", None)
 
-            if price <= 1:
-                continue
+            if price is None or price <= 1:
+                price = 2.00
 
             # BACK
-            if won:
+            if result == outcome:
                 profits_back[outcome] += (price - 1)
             else:
                 profits_back[outcome] -= 1
 
-            # LAY (responsabilità fissa 1)
-            if not won:
+            # LAY → responsabilità fissa 1 punto
+            if result != outcome:
                 profits_lay[outcome] += 1
             else:
                 profits_lay[outcome] -= (price - 1)
