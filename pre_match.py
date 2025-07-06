@@ -3,10 +3,7 @@ import pandas as pd
 from utils import label_match
 from squadre import compute_team_macro_stats
 from macros import run_macro_stats
-from utils import load_data_from_dropbox
 
-# Per lanciare il modulo da solo:
-df, db_selected = load_data_from_dropbox()
 
 # --------------------------------------------------------
 # FUNZIONE PER OTTENERE LEAGUE DATA BY LABEL
@@ -138,6 +135,7 @@ def calculate_back_lay(filtered_df):
 
     return profits_back, rois_back, profits_lay, rois_lay, matches
 
+
 # --------------------------------------------------------
 # RUN PRE MATCH PAGE
 # --------------------------------------------------------
@@ -164,7 +162,6 @@ def run_pre_match(df, db_selected):
 
     with col2:
         squadra_ospite = st.selectbox("Seleziona Squadra Ospite", options=teams_available)
-
 
     col1, col2, col3 = st.columns(3)
 
