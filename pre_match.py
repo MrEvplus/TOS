@@ -54,7 +54,7 @@ def get_label_type(label):
         return "Both"
 
 # --------------------------------------------------------
-# FUNZIONE DI FORMATTAZIONE COLORE
+# FORMATTING COLORE
 # --------------------------------------------------------
 def format_value(val):
     if val > 0:
@@ -65,7 +65,7 @@ def format_value(val):
         return f"{val:.2f}"
 
 # --------------------------------------------------------
-# CALCOLA BACK / LAY STATS SU FILTRO
+# CALCOLO BACK / LAY STATS
 # --------------------------------------------------------
 def calculate_back_lay(filtered_df):
     profits_back = {"HOME": 0, "DRAW": 0, "AWAY": 0}
@@ -83,6 +83,7 @@ def calculate_back_lay(filtered_df):
         )
 
         for outcome in ["HOME", "DRAW", "AWAY"]:
+            # Leggi la quota giusta
             if outcome == "HOME":
                 price = row.get("Odd home", None)
             elif outcome == "DRAW":
@@ -90,7 +91,12 @@ def calculate_back_lay(filtered_df):
             elif outcome == "AWAY":
                 price = row.get("Odd Away", None)
 
-            if price is None or price <= 1:
+            try:
+                price = float(price)
+            except:
+                price = 2.00
+
+            if price <= 1:
                 price = 2.00
 
             # BACK
@@ -99,7 +105,7 @@ def calculate_back_lay(filtered_df):
             else:
                 profits_back[outcome] -= 1
 
-            # LAY → responsabilità fissa 1 punto
+            # LAY (responsabilità fissa 1 punto)
             if result != outcome:
                 profits_lay[outcome] += 1
             else:
@@ -126,6 +132,10 @@ def run_pre_match(df, db_selected):
     if "Label" not in df.columns:
         df = df.copy()
         df["Label"] = df.apply(label_match, axis=1)
+
+    # Rimuovi eventuali spazi extra nei nomi squadre
+    df["Home"] = df["Home"].str.strip()
+    df["Away"] = df["Away"].str.strip()
 
     teams_available = sorted(
         set(df[df["country"] == db_selected]["Home"].dropna().unique()) |
@@ -195,9 +205,13 @@ def run_pre_match(df, db_selected):
         row_home = {"LABEL": squadra_casa}
         if label and label_type in ["Home", "Both"]:
             filtered_home = df[(df["Label"] == label) & (df["Home"] == squadra_casa)]
-            with st.expander(f"DEBUG - Partite Home per {squadra_casa} nel Label {label}"):
-                st.write(f"Numero partite: {len(filtered_home)}")
-                st.dataframe(filtered_home)
+
+            if filtered_home.empty:
+                filtered_home = df[df["Home"] == squadra_casa]
+                st.info(f"⚠️ Nessuna partita trovata per questo label. Calcolo eseguito su TUTTO il database per {squadra_casa}.")
+
+            with st.expander(f"DEBUG - Partite Home per {squadra_casa}"):
+                st.write(filtered_home)
 
             profits_back, rois_back, profits_lay, rois_lay, matches_home = calculate_back_lay(filtered_home)
 
@@ -235,9 +249,13 @@ def run_pre_match(df, db_selected):
         row_away = {"LABEL": squadra_ospite}
         if label and label_type in ["Away", "Both"]:
             filtered_away = df[(df["Label"] == label) & (df["Away"] == squadra_ospite)]
-            with st.expander(f"DEBUG - Partite Away per {squadra_ospite} nel Label {label}"):
-                st.write(f"Numero partite: {len(filtered_away)}")
-                st.dataframe(filtered_away)
+
+            if filtered_away.empty:
+                filtered_away = df[df["Away"] == squadra_ospite]
+                st.info(f"⚠️ Nessuna partita trovata per questo label. Calcolo eseguito su TUTTO il database per {squadra_ospite}.")
+
+            with st.expander(f"DEBUG - Partite Away per {squadra_ospite}"):
+                st.write(filtered_away)
 
             profits_back, rois_back, profits_lay, rois_lay, matches_away = calculate_back_lay(filtered_away)
 
@@ -269,9 +287,28 @@ def run_pre_match(df, db_selected):
                     row_away[f"{col} {outcome}"] = 0
         rows.append(row_away)
 
-        df_bookie = pd.DataFrame(rows)
+        # ------------------------------------------
+        # CONVERSIONE TABELLA IN LONG FORMAT
+        # ------------------------------------------
+        rows_long = []
+        for row in rows:
+            for outcome in ["HOME", "DRAW", "AWAY"]:
+                rows_long.append({
+                    "LABEL": row["LABEL"],
+                    "SEGNO": outcome,
+                    "Matches": row["MATCHES"],
+                    "Win %": row[f"BACK WIN% {outcome}"],
+                    "Back Pts": row[f"BACK PTS {outcome}"],
+                    "Back ROI %": row[f"BACK ROI% {outcome}"],
+                    "Lay Pts": row[f"Lay pts {outcome}"],
+                    "Lay ROI %": row[f"lay ROI% {outcome}"]
+                })
+
+        df_long = pd.DataFrame(rows_long)
+        df_long.loc[df_long.duplicated(subset=["LABEL"]), "LABEL"] = ""
+
         st.markdown(f"#### Range di quota identificato (Label): `{label}`")
-        st.dataframe(df_bookie, use_container_width=True)
+        st.dataframe(df_long, use_container_width=True)
 
         # -------------------------------------------------------
         # CONFRONTO MACRO STATS
