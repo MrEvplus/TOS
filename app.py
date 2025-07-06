@@ -49,24 +49,28 @@ if origine_dati == "Dropbox":
         st.warning("⚠ Nessun file trovato su Dropbox.")
         st.stop()
 
-    file_selected = st.sidebar.selectbox("Seleziona File Excel:", db_files)
+    lista_df = []
+    for file in db_files:
+        dropbox_path = DROPBOX_FOLDER + file
+        try:
+            xls = read_excel_from_dropbox(dropbox_path)
+            # Supponiamo ci sia solo 1 foglio in ogni Excel
+            foglio = xls.sheet_names[0]
+            df_tmp = pd.read_excel(xls, sheet_name=foglio)
+            df_tmp["__file"] = file  # traccia il file di origine
+            lista_df.append(df_tmp)
+            st.sidebar.success(f"✅ Caricato {file}")
+        except Exception as e:
+            st.warning(f"⚠ Errore nel leggere {file}: {e}")
 
-    dropbox_path = DROPBOX_FOLDER + file_selected
+    if not lista_df:
+        st.error("⚠ Nessun Excel valido caricato.")
+        st.stop()
 
-    # Scarica Excel da Dropbox
-    xls = read_excel_from_dropbox(dropbox_path)
+    df = pd.concat(lista_df, ignore_index=True)
 
-    st.sidebar.success("✅ Database caricato da Dropbox!")
-    st.sidebar.write("✅ Fogli disponibili nel file Excel:")
-    st.sidebar.write(xls.sheet_names)
+    st.sidebar.write(f"✅ Righe totali caricate da Dropbox: {len(df)}")
 
-    sheet_name = st.sidebar.selectbox(
-        "Scegli il foglio da elaborare:",
-        xls.sheet_names
-    )
-
-    # Leggi il foglio selezionato
-    df = pd.read_excel(xls, sheet_name=sheet_name)
 
 # -------------------------------------------------------
 # BRANCH: UPLOAD MANUALE
