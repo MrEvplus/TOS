@@ -5,6 +5,9 @@ from squadre import compute_team_macro_stats
 from macros import run_macro_stats
 from utils import load_data_from_dropbox
 
+# Per lanciare il modulo da solo:
+df, db_selected = load_data_from_dropbox()
+
 # --------------------------------------------------------
 # FUNZIONE PER OTTENERE LEAGUE DATA BY LABEL
 # --------------------------------------------------------

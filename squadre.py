@@ -5,6 +5,9 @@ import altair as alt
 from datetime import datetime
 from utils import load_data_from_dropbox
 
+# Per lanciare il modulo da solo:
+df, db_selected = load_data_from_dropbox()
+
 # --------------------------------------------------------
 # ENTRY POINT
 # --------------------------------------------------------
