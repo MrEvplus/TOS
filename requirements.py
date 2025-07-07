@@ -4,4 +4,6 @@ numpy
 plotly
 openpyxl
 streamlit-aggrid
-dropbox
+gspread
+oauth2client
+

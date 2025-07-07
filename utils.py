@@ -1,62 +1,76 @@
 import numpy as np
-import dropbox
 import pandas as pd
-import io
 import streamlit as st
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+import json
 
-# Legge il token dai secrets
-DROPBOX_ACCESS_TOKEN = st.secrets["DROPBOX_ACCESS_TOKEN"]
+# ----------------------------------------------------------
+# Legge le credenziali Google Sheets
+# ----------------------------------------------------------
 
-def read_excel_from_dropbox(dropbox_path):
+def get_gsheets_client():
     """
-    Scarica un singolo file Excel da Dropbox e lo restituisce come oggetto ExcelFile (pandas)
+    Restituisce un client gspread autorizzato.
+    Funziona sia in locale che su Streamlit Cloud.
     """
-    dbx = dropbox.Dropbox(DROPBOX_ACCESS_TOKEN)
-    _, res = dbx.files_download(path=dropbox_path)
-    file_like = io.BytesIO(res.content)
-    xls = pd.ExcelFile(file_like)
-    return xls
+    try:
+        if "GCP_CREDENTIALS" in st.secrets:
+            # Se su Streamlit Cloud
+            gcp_info = json.loads(st.secrets["GCP_CREDENTIALS"])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(
+                gcp_info,
+                scopes=[
+                    "https://spreadsheets.google.com/feeds",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+            )
+        else:
+            # Se locale
+            creds = ServiceAccountCredentials.from_json_keyfile_name(
+                "tradingdashboard-465220-562e2e145916.json",
+                scopes=[
+                    "https://spreadsheets.google.com/feeds",
+                    "https://www.googleapis.com/auth/drive"
+                ]
+            )
+    except Exception as e:
+        st.error(f"Errore nella lettura delle credenziali Google Sheets: {e}")
+        st.stop()
 
-def list_files_in_dropbox_folder(folder_path="/Database/"):
-    """
-    Elenca tutti i file presenti in una cartella Dropbox
-    """
-    dbx = dropbox.Dropbox(DROPBOX_ACCESS_TOKEN)
-    result = dbx.files_list_folder(folder_path)
-    files = []
-    for entry in result.entries:
-        if isinstance(entry, dropbox.files.FileMetadata):
-            files.append(entry.name)
-    return files
+    client = gspread.authorize(creds)
+    return client
 
-def load_data_from_dropbox():
+# ----------------------------------------------------------
+# Carica i dati da Google Sheets
+# ----------------------------------------------------------
+
+def load_data_from_gsheets():
     """
-    Carica automaticamente tutti i file Excel relativi al campionato scelto dall'utente.
+    Carica automaticamente tutti i dati relativi al campionato scelto dall'utente
+    da Google Sheets.
     Ritorna:
         - DataFrame unito
         - Nome campionato selezionato
     """
-    st.sidebar.markdown("### 🌐 Origine: Dropbox")
 
-    DROPBOX_FOLDER = "/Database/"
-    db_files = list_files_in_dropbox_folder(DROPBOX_FOLDER)
+    st.sidebar.markdown("### 🌐 Origine: Google Sheets")
 
-    if not db_files:
-        st.warning("⚠ Nessun file trovato su Dropbox.")
+    client = get_gsheets_client()
+
+    # Elenco di tutti gli spreadsheets
+    spreadsheets = client.list_spreadsheet_files()
+
+    if not spreadsheets:
+        st.warning("⚠ Nessun Google Sheet trovato nel tuo account.")
         st.stop()
 
-    # Raggruppa campionati (es. BRAZIL_1, BRAZIL_2, ecc.)
-    campionati = set()
-    for file in db_files:
-        nome_split = file.split("_")
-        if len(nome_split) >= 2:
-            campionato = f"{nome_split[0].upper()}_{nome_split[1]}"
-            campionati.add(campionato)
-    campionati_disponibili = sorted(list(campionati))
+    # Elenco nomi file (nome foglio = campionato)
+    sheet_names = [s['name'] for s in spreadsheets]
 
     campionato_scelto = st.sidebar.selectbox(
         "Seleziona Campionato:",
-        [""] + campionati_disponibili,
+        [""] + sheet_names,
         index=0
     )
 
@@ -64,39 +78,71 @@ def load_data_from_dropbox():
         st.info("ℹ️ Seleziona un campionato per procedere al caricamento dati.")
         st.stop()
 
-    # Filtra file
-    files_da_caricare = [
-        f for f in db_files
-        if f.upper().startswith(campionato_scelto.upper())
-    ]
+    # Apre lo spreadsheet scelto
+    spreadsheet = client.open(campionato_scelto)
 
-    if not files_da_caricare:
-        st.warning(f"⚠ Nessun file trovato per il campionato selezionato: {campionato_scelto}")
+    worksheet_names = [ws.title for ws in spreadsheet.worksheets()]
+
+    # Se ci sono più fogli nel file Excel → scegli quale
+    foglio_excel = st.sidebar.selectbox(
+        "Seleziona Foglio:",
+        worksheet_names
+    )
+
+    worksheet = spreadsheet.worksheet(foglio_excel)
+
+    data = worksheet.get_all_records()
+
+    if not data:
+        st.warning(f"⚠ Nessun dato trovato nel foglio '{foglio_excel}'.")
         st.stop()
 
-    lista_df = []
-    for file in files_da_caricare:
-        dropbox_path = DROPBOX_FOLDER + file
-        try:
-            xls = read_excel_from_dropbox(dropbox_path)
-            sheet_name = xls.sheet_names[0]
-            df_tmp = pd.read_excel(xls, sheet_name=sheet_name)
-            df_tmp["__file"] = file
-            # 👇 SOVRASCRIVE IL CAMPO COUNTRY
-            df_tmp["country"] = campionato_scelto
-            lista_df.append(df_tmp)
-            st.sidebar.success(f"✅ Caricato {file}")
-        except Exception as e:
-            st.sidebar.warning(f"⚠ Errore su {file}: {e}")
+    df = pd.DataFrame(data)
 
-    if not lista_df:
-        st.error("⚠ Nessun file Excel valido caricato.")
-        st.stop()
+    # Trova tutti i campionati disponibili se esiste la colonna 'country'
+    if "country" in df.columns:
+        df["country"] = (
+            df["country"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.upper()
+        )
+        campionati_disponibili = sorted(df["country"].unique())
+    else:
+        campionati_disponibili = []
 
-    df = pd.concat(lista_df, ignore_index=True)
-    st.sidebar.write(f"✅ Righe totali caricate per {campionato_scelto}: {len(df)}")
+    if campionati_disponibili:
+        db_selected = st.sidebar.selectbox(
+            "Seleziona Campionato (colonna country):",
+            campionati_disponibili
+        )
+        df = df[df["country"] == db_selected]
+    else:
+        db_selected = campionato_scelto
 
-    return df, campionato_scelto
+    # Selezione stagioni
+    if "Stagione" in df.columns:
+        stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
+    else:
+        stagioni_disponibili = []
+
+    if stagioni_disponibili:
+        stagioni_scelte = st.sidebar.multiselect(
+            "Seleziona le stagioni da includere nell'analisi:",
+            options=stagioni_disponibili,
+            default=stagioni_disponibili
+        )
+        if stagioni_scelte:
+            df = df[df["Stagione"].isin(stagioni_scelte)]
+
+    st.sidebar.write(f"✅ Righe caricate da Google Sheets: {len(df)}")
+
+    return df, db_selected
+
+# ----------------------------------------------------------
+# Altre funzioni originali (label_match, extract_minutes)
+# ----------------------------------------------------------
 
 def label_match(row):
     h = row.get("Odd home", np.nan)

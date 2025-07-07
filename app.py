@@ -5,7 +5,7 @@ import os
 from macros import run_macro_stats
 from squadre import run_team_stats
 from pre_match import run_pre_match
-from utils import load_data_from_dropbox, label_match
+from utils import load_data_from_gsheets, label_match
 
 # -------------------------------------------------------
 # CONFIGURAZIONE PAGINA
@@ -27,18 +27,18 @@ menu_option = st.sidebar.radio(
 )
 
 # -------------------------------------------------------
-# SELEZIONE ORIGINE DATI (Dropbox o Locale)
+# SELEZIONE ORIGINE DATI (Google Sheets o Upload Manuale)
 # -------------------------------------------------------
 origine_dati = st.sidebar.radio(
     "Seleziona origine dati:",
-    ["Dropbox", "Upload Manuale"]
+    ["Google Sheets", "Upload Manuale"]
 )
 
 # -------------------------------------------------------
-# BRANCH: DROPBOX
+# BRANCH: GOOGLE SHEETS
 # -------------------------------------------------------
-if origine_dati == "Dropbox":
-    df, db_selected = load_data_from_dropbox()
+if origine_dati == "Google Sheets":
+    df, db_selected = load_data_from_gsheets()
 
 # -------------------------------------------------------
 # BRANCH: UPLOAD MANUALE
