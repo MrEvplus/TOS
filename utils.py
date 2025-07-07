@@ -16,7 +16,6 @@ def get_gsheets_client():
     """
     try:
         if "GCP_CREDENTIALS" in st.secrets:
-            # Se su Streamlit Cloud
             gcp_info = json.loads(st.secrets["GCP_CREDENTIALS"])
             creds = ServiceAccountCredentials.from_json_keyfile_dict(
                 gcp_info,
@@ -26,7 +25,6 @@ def get_gsheets_client():
                 ]
             )
         else:
-            # Se locale
             creds = ServiceAccountCredentials.from_json_keyfile_name(
                 "tradingdashboard-465220-562e2e145916.json",
                 scopes=[
@@ -47,10 +45,10 @@ def get_gsheets_client():
 
 def load_data_from_gsheets():
     """
-    Carica automaticamente tutti i dati relativi al campionato scelto dall'utente
-    da Google Sheets.
+    Carica automaticamente tutti i file Google Sheets relativi
+    al campionato scelto dall'utente.
     Ritorna:
-        - DataFrame unito
+        - DataFrame unito di tutte le stagioni
         - Nome campionato selezionato
     """
 
@@ -58,68 +56,69 @@ def load_data_from_gsheets():
 
     client = get_gsheets_client()
 
-    # Elenco di tutti gli spreadsheets
     spreadsheets = client.list_spreadsheet_files()
 
     if not spreadsheets:
         st.warning("⚠ Nessun Google Sheet trovato nel tuo account.")
         st.stop()
 
-    # Elenco nomi file (nome foglio = campionato)
-    sheet_names = [s['name'] for s in spreadsheets]
+    # Ricostruisce elenco macro-campionati
+    campionati = set()
+    for s in spreadsheets:
+        nome_split = s["name"].split("_")
+        if len(nome_split) >= 2:
+            campionato = f"{nome_split[0]}_{nome_split[1]}"
+            campionati.add(campionato)
+
+    campionati_disponibili = sorted(list(campionati))
+
+    if not campionati_disponibili:
+        st.warning("⚠ Nessun campionato rilevato nei nomi dei Google Sheets.")
+        st.stop()
 
     campionato_scelto = st.sidebar.selectbox(
         "Seleziona Campionato:",
-        [""] + sheet_names,
-        index=0
+        campionati_disponibili
     )
 
-    if campionato_scelto == "":
-        st.info("ℹ️ Seleziona un campionato per procedere al caricamento dati.")
+    # Trova tutti i Google Sheets relativi a quel campionato
+    sheets_da_caricare = [
+        s for s in spreadsheets
+        if s["name"].upper().startswith(campionato_scelto.upper())
+    ]
+
+    if not sheets_da_caricare:
+        st.warning(f"⚠ Nessun file trovato per il campionato selezionato: {campionato_scelto}")
         st.stop()
 
-    # Apre lo spreadsheet scelto
-    spreadsheet = client.open(campionato_scelto)
+    lista_df = []
 
-    worksheet_names = [ws.title for ws in spreadsheet.worksheets()]
+    for s in sheets_da_caricare:
+        try:
+            spreadsheet = client.open(s["name"])
+            worksheet_names = [ws.title for ws in spreadsheet.worksheets()]
 
-    # Se ci sono più fogli nel file Excel → scegli quale
-    foglio_excel = st.sidebar.selectbox(
-        "Seleziona Foglio:",
-        worksheet_names
-    )
+            # Carica sempre il primo foglio (o eventualmente scegli se più fogli)
+            worksheet = spreadsheet.worksheet(worksheet_names[0])
+            data = worksheet.get_all_records()
 
-    worksheet = spreadsheet.worksheet(foglio_excel)
+            if data:
+                df_tmp = pd.DataFrame(data)
+                df_tmp["__file"] = s["name"]
+                df_tmp["country"] = campionato_scelto.upper()
+                lista_df.append(df_tmp)
+                st.sidebar.success(f"✅ Caricato {s['name']}")
+            else:
+                st.sidebar.warning(f"⚠ Il foglio {s['name']} è vuoto.")
+        except Exception as e:
+            st.sidebar.warning(f"⚠ Errore su {s['name']}: {e}")
 
-    data = worksheet.get_all_records()
-
-    if not data:
-        st.warning(f"⚠ Nessun dato trovato nel foglio '{foglio_excel}'.")
+    if not lista_df:
+        st.error("⚠ Nessun file Google Sheet valido caricato.")
         st.stop()
 
-    df = pd.DataFrame(data)
-
-    # Trova tutti i campionati disponibili se esiste la colonna 'country'
-    if "country" in df.columns:
-        df["country"] = (
-            df["country"]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-            .str.upper()
-        )
-        campionati_disponibili = sorted(df["country"].unique())
-    else:
-        campionati_disponibili = []
-
-    if campionati_disponibili:
-        db_selected = st.sidebar.selectbox(
-            "Seleziona Campionato (colonna country):",
-            campionati_disponibili
-        )
-        df = df[df["country"] == db_selected]
-    else:
-        db_selected = campionato_scelto
+    # Unisce tutti i DataFrame
+    df = pd.concat(lista_df, ignore_index=True)
 
     # Selezione stagioni
     if "Stagione" in df.columns:
@@ -138,7 +137,7 @@ def load_data_from_gsheets():
 
     st.sidebar.write(f"✅ Righe caricate da Google Sheets: {len(df)}")
 
-    return df, db_selected
+    return df, campionato_scelto
 
 # ----------------------------------------------------------
 # Altre funzioni originali (label_match, extract_minutes)
