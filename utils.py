@@ -120,7 +120,24 @@ def load_data_from_gsheets():
     # Unisce tutti i DataFrame
     df = pd.concat(lista_df, ignore_index=True)
 
+    # ----------------------------------------------------------
+    # 🔥 NUOVO BLOCCO: pulizia Odds
+    # ----------------------------------------------------------
+    # Sostituisce virgole -> punti, converte in numerico
+    for col in ["Odd home", "Odd Away"]:
+        if col in df.columns:
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", ".")
+                .str.strip()
+            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # ----------------------------------------------------------
     # Selezione stagioni
+    # ----------------------------------------------------------
+
     if "Stagione" in df.columns:
         stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
     else:
