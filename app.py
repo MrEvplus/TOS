@@ -143,16 +143,6 @@ if "Stagione" in df.columns:
 else:
     stagioni_disponibili = []
 
-if stagioni_disponibili:
-    stagioni_scelte = st.sidebar.multiselect(
-        "Seleziona le stagioni da includere nell'analisi:",
-        options=stagioni_disponibili,
-        default=stagioni_disponibili
-    )
-    if not stagioni_scelte:
-        stagioni_scelte = stagioni_disponibili
-
-    df = df[df["Stagione"].isin(stagioni_scelte)]
 
 # Mostra colonne disponibili per debug
 st.write("✅ Colonne presenti nel foglio selezionato:")
