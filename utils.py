@@ -123,15 +123,20 @@ def load_data_from_gsheets():
     # ----------------------------------------------------------
     # 🔥 NUOVO BLOCCO: pulizia Odds
     # ----------------------------------------------------------
-    # Sostituisce virgole -> punti, converte in numerico
     for col in ["Odd home", "Odd Away"]:
         if col in df.columns:
+            # Rimpiazza valori vuoti o stringhe non numeriche con NaN
+            df[col] = df[col].replace(["-", "nan", "NaN", ""], np.nan)
+
+            # Trasforma le virgole in punti decimali
             df[col] = (
                 df[col]
                 .astype(str)
-                .str.replace(",", ".")
+                .str.replace(",", ".", regex=False)
                 .str.strip()
             )
+
+            # Converte in numerico
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     # ----------------------------------------------------------
