@@ -59,7 +59,7 @@ if uploaded_file_upsert is not None:
             if col in df_upload.columns:
                 df_upload[col] = pd.to_numeric(df_upload[col], errors="coerce")
 
-        # Sostituisce NaN con None
+        # Sostituisce NaN con None nel DataFrame
         df_upload = df_upload.where(pd.notnull(df_upload), None)
 
         # Trasforma in lista di dict
@@ -68,13 +68,13 @@ if uploaded_file_upsert is not None:
         # --------------------------------
         # FIX DEFINITIVO PER JSON NAN
         # --------------------------------
-        try:
-            # Trasforma JSON e ricarica per escludere eventuali NaN
-            json_data = json.dumps(data, allow_nan=False)
-            data_clean = json.loads(json_data)
-        except ValueError as e:
-            st.sidebar.error(f"❌ Errore JSON durante serializzazione: {e}")
-            st.stop()
+        for record in data:
+            for k, v in record.items():
+                if isinstance(v, float):
+                    if pd.isna(v) or v in [np.inf, -np.inf]:
+                        record[k] = None
+
+        data_clean = data
 
         # -------------------------------
         # ESEGUE UPSERT SU SUPABASE
