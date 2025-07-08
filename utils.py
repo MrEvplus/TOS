@@ -189,8 +189,8 @@ def label_match(row):
     """
 
     try:
-        h = float(row.get("odd home", np.nan))
-        a = float(row.get("odd away", np.nan))
+        h = float(row.get("Odd home", np.nan))
+        a = float(row.get("Odd Away", np.nan))
     except:
         return "Others"
 
