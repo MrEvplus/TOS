@@ -199,17 +199,15 @@ def extract_minutes(series):
     """
     all_minutes = []
 
-    # Sostituisci NaN con stringa vuota
     series = series.fillna("")
 
     for val in series:
         val = str(val).strip()
         if val == "" or val == ";":
             continue
-        # separatore ; oppure eventuali ,
         parts = val.replace(",", ";").split(";")
         for part in parts:
             part = part.strip()
-            if part.isdigit():
-                all_minutes.append(int(part))
+            if part.replace(".", "", 1).isdigit():
+                all_minutes.append(int(float(part)))
     return all_minutes
