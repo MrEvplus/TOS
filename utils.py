@@ -174,11 +174,23 @@ def label_match(row):
 # ----------------------------------------------------------
 
 def extract_minutes(series):
+    """
+    Estrae i minuti di goal da colonne tipo 'mgolh' o 'mgola'
+    anche se NULL, vuote o contenenti solo ';'
+    """
     all_minutes = []
-    for val in series.dropna():
-        if isinstance(val, str):
-            for part in val.replace(",", ";").split(";"):
-                part = part.strip()
-                if part.isdigit():
-                    all_minutes.append(int(part))
+
+    # Sostituisci NaN con stringa vuota
+    series = series.fillna("")
+
+    for val in series:
+        val = str(val).strip()
+        if val == "" or val == ";":
+            continue
+        # separatore ; oppure eventuali ,
+        parts = val.replace(",", ";").split(";")
+        for part in parts:
+            part = part.strip()
+            if part.isdigit():
+                all_minutes.append(int(part))
     return all_minutes
