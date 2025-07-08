@@ -4,6 +4,10 @@ import numpy as np
 import plotly.graph_objects as go
 from utils import label_match, extract_minutes
 
+# --------------------------------------------------------
+# FUNZIONE: Calcolo Goal Timeframes
+# --------------------------------------------------------
+
 def calculate_goal_timeframes(sub_df, label):
     """
     Calcola la distribuzione % dei goal segnati e concessi per intervallo di minuti.
@@ -126,7 +130,7 @@ def run_macro_stats(df, db_selected):
     df["Stagione"] = df["Stagione"].fillna("Unknown").astype(str).replace("", "Unknown")
 
     # ----------------------------------------------------------
-    # CONVERSIONE QUOTE (da stringa a float, gestendo virgole)
+    # CONVERSIONE QUOTE
     # ----------------------------------------------------------
 
     for col in ["Odd home", "Odd Draw", "Odd Away"]:
@@ -197,8 +201,33 @@ def run_macro_stats(df, db_selected):
     cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
-    st.subheader(f"✅ League Stats Summary - {db_selected}")
-    st.dataframe(grouped, use_container_width=True, hide_index=True)
+    # ----------------------------------------------------------
+    # AGGIUNGI RIGA TOTALE
+    # ----------------------------------------------------------
+
+    if not grouped.empty:
+        total_row = {}
+
+        total_row["country"] = "Total"
+        total_row["Stagione"] = "-"
+
+        total_row["Matches"] = grouped["Matches"].sum()
+
+        for col in grouped.columns:
+            if col not in ["country", "Stagione", "Matches"]:
+                weighted_sum = (grouped[col] * grouped["Matches"]).sum()
+                weighted_avg = weighted_sum / grouped["Matches"].sum() if grouped["Matches"].sum() > 0 else 0
+                total_row[col] = round(weighted_avg, 2)
+
+        total_df = pd.DataFrame([total_row])
+
+        grouped_final = pd.concat([grouped, total_df], ignore_index=True)
+
+        st.subheader(f"✅ League Stats Summary - {db_selected}")
+        st.dataframe(grouped_final, use_container_width=True, hide_index=True)
+    else:
+        st.subheader(f"✅ League Stats Summary - {db_selected}")
+        st.dataframe(grouped, use_container_width=True, hide_index=True)
 
     # ----------------------------------------------------------
     # League Data by Start Price
