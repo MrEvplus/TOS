@@ -11,22 +11,42 @@ def calculate_goal_timeframes(sub_df, label):
 
     time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
 
-    # Tenta di leggere colonne minuti goal segnato
-    minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-    minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+    # Leggi minuti goal da colonne corrette (post-rename)
+    minutes_home = []
+    minutes_away = []
 
-    # Fallback su gh1…9 e ga1…9 se mancano i minuti
+    if "minuti goal segnato home" in sub_df.columns:
+        minutes_home = extract_minutes(sub_df["minuti goal segnato home"])
+
+    if "minuti goal segnato away" in sub_df.columns:
+        minutes_away = extract_minutes(sub_df["minuti goal segnato away"])
+
+    # Fallback su colonne gh1…9 se i minuti sono vuoti
     if len(minutes_home) == 0:
-        minutes_home = []
-        for col in ["gh1","gh2","gh3","gh4","gh5","gh6","gh7","gh8","gh9"]:
+        for col in ["home 1 goal segnato(min)",
+                    "home 2 goal segnato(min)",
+                    "home 3 goal segnato(min)",
+                    "home 4 goal segnato(min)",
+                    "home 5 goal segnato(min)",
+                    "home 6 goal segnato(min)",
+                    "home 7 goal segnato(min)",
+                    "home 8 goal segnato(min)",
+                    "home 9 goal segnato(min)"]:
             if col in sub_df.columns:
                 val = sub_df[col].values[0]
                 if not pd.isna(val) and val != 0:
                     minutes_home.append(int(val))
 
     if len(minutes_away) == 0:
-        minutes_away = []
-        for col in ["ga1","ga2","ga3","ga4","ga5","ga6","ga7","ga8","ga9"]:
+        for col in ["1 goal away (min)",
+                    "2 goal away (min)",
+                    "3 goal away (min)",
+                    "4 goal away (min)",
+                    "5 goal away (min)",
+                    "6 goal away (min)",
+                    "7 goal away (min)",
+                    "8 goal away (min)",
+                    "9 goal away (min)"]:
             if col in sub_df.columns:
                 val = sub_df[col].values[0]
                 if not pd.isna(val) and val != 0:
@@ -227,3 +247,4 @@ def run_macro_stats(df, db_selected):
 
                 with cols[j]:
                     st.plotly_chart(fig, use_container_width=True)
+
