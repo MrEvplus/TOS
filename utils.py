@@ -10,11 +10,12 @@ from supabase import create_client
 def load_data_from_supabase():
     st.sidebar.markdown("### 🌐 Origine: Supabase")
 
-    SUPABASE_URL = "https://dqqlaamfxaconepbdjek.supabase.co"
-    SUPABASE_KEY ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxcWxhYW1meGFjb25lcGJkamVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MTcwMTAsImV4cCI6MjA2NzQ5MzAxMH0.K9UmjDqrv-fJcl3jwdLiD5B0Md8JiTMrOAaRKz9ge_g"
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+    # Scarica tutti i dati dalla tabella
     res = supabase.table("partite").select("*").execute()
     df = pd.DataFrame(res.data)
 
@@ -22,12 +23,12 @@ def load_data_from_supabase():
         st.warning("⚠ Nessun dato trovato su Supabase.")
         st.stop()
 
-    # Conversione virgole nei numeri
+    # Conversione eventuali virgole in punti
     for col in df.columns:
         if df[col].dtype == object:
             df[col] = df[col].str.replace(",", ".")
 
-    # Conversione numerica dove possibile
+    # Tentativo di conversione numerica
     df = df.apply(pd.to_numeric, errors="ignore")
 
     # Conversione date
@@ -35,10 +36,15 @@ def load_data_from_supabase():
         df["datameci"] = pd.to_datetime(df["datameci"], errors="coerce")
 
     # Campionati disponibili
-    campionati_disponibili = sorted(df["country"].dropna().unique())
+    if "country" in df.columns:
+        campionati_disponibili = sorted(df["country"].dropna().unique())
+    else:
+        campionati_disponibili = []
+
     campionato_scelto = st.sidebar.selectbox(
         "Seleziona Campionato:",
-        [""] + campionati_disponibili
+        [""] + campionati_disponibili,
+        key="selectbox_campionato_supabase"
     )
 
     if campionato_scelto == "":
@@ -56,7 +62,8 @@ def load_data_from_supabase():
     stagioni_scelte = st.sidebar.multiselect(
         "Seleziona le stagioni da includere nell'analisi:",
         options=stagioni_disponibili,
-        default=stagioni_disponibili
+        default=stagioni_disponibili,
+        key="multiselect_stagioni_supabase"
     )
 
     if stagioni_scelte:
@@ -75,14 +82,15 @@ def load_data_from_file():
 
     uploaded_file = st.sidebar.file_uploader(
         "Carica il tuo file Excel o CSV:",
-        type=["xls", "xlsx", "csv"]
+        type=["xls", "xlsx", "csv"],
+        key="file_uploader_upload"
     )
 
     if uploaded_file is None:
         st.info("ℹ️ Carica un file per continuare.")
         st.stop()
 
-    # Detect file type
+    # Riconosce CSV o Excel
     if uploaded_file.name.endswith(".csv"):
         df = pd.read_csv(uploaded_file)
     else:
@@ -106,7 +114,8 @@ def load_data_from_file():
 
     campionato_scelto = st.sidebar.selectbox(
         "Seleziona Campionato:",
-        [""] + campionati_disponibili
+        [""] + campionati_disponibili,
+        key="selectbox_campionato_upload"
     )
 
     if campionato_scelto == "":
@@ -123,7 +132,8 @@ def load_data_from_file():
     stagioni_scelte = st.sidebar.multiselect(
         "Seleziona le stagioni da includere nell'analisi:",
         options=stagioni_disponibili,
-        default=stagioni_disponibili
+        default=stagioni_disponibili,
+        key="multiselect_stagioni_upload"
     )
 
     if stagioni_scelte:
