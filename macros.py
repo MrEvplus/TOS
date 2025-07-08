@@ -21,32 +21,36 @@ def calculate_goal_timeframes(sub_df, label):
     if "minuti goal segnato away" in sub_df.columns:
         minutes_away = extract_minutes(sub_df["minuti goal segnato away"])
 
-    # Fallback su colonne gh1…9 se i minuti sono vuoti
+    # Fallback su colonne singole se i minuti sono vuoti
     if len(minutes_home) == 0:
-        for col in ["home 1 goal segnato(min)",
-                    "home 2 goal segnato(min)",
-                    "home 3 goal segnato(min)",
-                    "home 4 goal segnato(min)",
-                    "home 5 goal segnato(min)",
-                    "home 6 goal segnato(min)",
-                    "home 7 goal segnato(min)",
-                    "home 8 goal segnato(min)",
-                    "home 9 goal segnato(min)"]:
+        for col in [
+            "home 1 goal segnato(min)",
+            "home 2 goal segnato(min)",
+            "home 3 goal segnato(min)",
+            "home 4 goal segnato(min)",
+            "home 5 goal segnato(min)",
+            "home 6 goal segnato(min)",
+            "home 7 goal segnato(min)",
+            "home 8 goal segnato(min)",
+            "home 9 goal segnato(min)",
+        ]:
             if col in sub_df.columns:
                 val = sub_df[col].values[0]
                 if not pd.isna(val) and val != 0:
                     minutes_home.append(int(val))
 
     if len(minutes_away) == 0:
-        for col in ["1 goal away (min)",
-                    "2 goal away (min)",
-                    "3 goal away (min)",
-                    "4 goal away (min)",
-                    "5 goal away (min)",
-                    "6 goal away (min)",
-                    "7 goal away (min)",
-                    "8 goal away (min)",
-                    "9 goal away (min)"]:
+        for col in [
+            "1 goal away (min)",
+            "2 goal away (min)",
+            "3 goal away (min)",
+            "4 goal away (min)",
+            "5 goal away (min)",
+            "6 goal away (min)",
+            "7 goal away (min)",
+            "8 goal away (min)",
+            "9 goal away (min)",
+        ]:
             if col in sub_df.columns:
                 val = sub_df[col].values[0]
                 if not pd.isna(val) and val != 0:
@@ -121,6 +125,22 @@ def run_macro_stats(df, db_selected):
     df["country"] = df["country"].fillna("Unknown").astype(str).replace("", "Unknown")
     df["Stagione"] = df["Stagione"].fillna("Unknown").astype(str).replace("", "Unknown")
 
+    # ----------------------------------------------------------
+    # CONVERSIONE QUOTE (da stringa a float, gestendo virgole)
+    # ----------------------------------------------------------
+
+    for col in ["Odd home", "Odd Draw", "Odd Away"]:
+        if col in df.columns:
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", ".")
+                .replace("nan", np.nan)
+                .astype(float)
+            )
+
+    # ----------------------------------------------------------
+
     if "goals_total" not in df.columns:
         df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 
@@ -180,8 +200,12 @@ def run_macro_stats(df, db_selected):
     st.subheader(f"✅ League Stats Summary - {db_selected}")
     st.dataframe(grouped, use_container_width=True, hide_index=True)
 
+    # ----------------------------------------------------------
     # League Data by Start Price
+    # ----------------------------------------------------------
+
     df["Label"] = df.apply(label_match, axis=1)
+
     group_label = df.groupby("Label").agg(
         Matches=(home_col, "count"),
         HomeWin_pct=("match_result", lambda x: (x == "Home Win").mean() * 100),
@@ -207,7 +231,10 @@ def run_macro_stats(df, db_selected):
     st.subheader(f"✅ League Data by Start Price - {db_selected}")
     st.dataframe(group_label, use_container_width=True, hide_index=True)
 
-    # Goal time frame plots
+    # ----------------------------------------------------------
+    # Goal Time Frame plots per Label
+    # ----------------------------------------------------------
+
     st.subheader(f"✅ Distribuzione Goal Time Frame % per Label - {db_selected}")
 
     labels = list(df["Label"].dropna().unique())
@@ -247,4 +274,3 @@ def run_macro_stats(df, db_selected):
 
                 with cols[j]:
                     st.plotly_chart(fig, use_container_width=True)
-
