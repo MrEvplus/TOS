@@ -159,24 +159,33 @@ def load_data_from_file():
 def label_match(row):
     """
     Classifica il match in una fascia di quote
-    basata sulle quote Odd home, Odd Away, Odd Draw
+    basata sulle quote cotaa (Home) e cotad (Away).
+    
+    Regole:
+      - SuperCompetitive → sia Home che Away ≤ 3.0
+      - H_StrongFav → Home quota < 1.5
+      - H_MediumFav → Home quota 1.5 – 2.0
+      - H_SmallFav → Home quota 2.01 – 3.0
+      - A_StrongFav → Away quota < 1.5
+      - A_MediumFav → Away quota 1.5 – 2.0
+      - A_SmallFav → Away quota 2.01 – 3.0
+      - Others → tutto il resto
     """
 
     try:
-        h = float(row.get("Odd home", np.nan))
-        d = float(row.get("Odd Draw", np.nan))
-        a = float(row.get("Odd Away", np.nan))
+        h = float(row.get("cotaa", np.nan))
+        a = float(row.get("cotad", np.nan))
     except:
         return "Others"
 
     if np.isnan(h) or np.isnan(a):
         return "Others"
 
-    # Check SuperCompetitive
+    # SuperCompetitive: entrambe le quote <= 3
     if h <= 3 and a <= 3:
-        return "SuperCompetitive H<3 A<3"
+        return "SuperCompetitive H<=3 A<=3"
 
-    # Classificazione per quote Home
+    # Classificazione Home
     if h < 1.5:
         return "H_StrongFav <1.5"
     elif 1.5 <= h <= 2:
@@ -184,7 +193,7 @@ def label_match(row):
     elif 2 < h <= 3:
         return "H_SmallFav 2-3"
 
-    # Classificazione per quote Away
+    # Classificazione Away
     if a < 1.5:
         return "A_StrongFav <1.5"
     elif 1.5 <= a <= 2:
