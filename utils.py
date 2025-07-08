@@ -158,13 +158,14 @@ def load_data_from_file():
 
 def label_match(row):
     """
-    Classifica il match in una fascia di quote basata sulle quote cotaa, cotae, cotad
+    Classifica il match in una fascia di quote
+    basata sulle quote Odd home, Odd Away, Odd Draw
     """
 
     try:
-        h = float(row.get("cotaa", np.nan))
-        d = float(row.get("cotad", np.nan))
-        a = float(row.get("cotae", np.nan))
+        h = float(row.get("Odd home", np.nan))
+        d = float(row.get("Odd Draw", np.nan))
+        a = float(row.get("Odd Away", np.nan))
     except:
         return "Others"
 
