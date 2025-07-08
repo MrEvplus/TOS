@@ -5,6 +5,7 @@ from macros import run_macro_stats
 from squadre import run_team_stats
 from pre_match import run_pre_match
 from utils import load_data_from_supabase, load_data_from_file, label_match
+from supabase import create_client
 
 # -------------------------------------------------------
 # CONFIGURAZIONE PAGINA
@@ -15,6 +16,70 @@ st.set_page_config(
 )
 
 st.sidebar.title("📊 Trading Dashboard")
+
+# -------------------------------------------------------
+# SEZIONE UPSERT CSV -> SUPABASE
+# -------------------------------------------------------
+
+st.sidebar.markdown("### 🔄 Upload CSV su Supabase (UPsert)")
+
+uploaded_file_upsert = st.sidebar.file_uploader(
+    "Carica il file CSV da importare su Supabase:",
+    type=["csv"],
+    key="uploader_supabase"
+)
+
+if uploaded_file_upsert is not None:
+    df_upload = pd.read_csv(uploaded_file_upsert)
+    st.sidebar.success("✅ File CSV caricato correttamente!")
+    st.sidebar.write("Anteprima dati:", df_upload.head())
+
+    # Bottone per lanciare l'upsert
+    if st.sidebar.button("👉 Esegui UPsert su Supabase"):
+
+        # -------------------------------
+        # PULIZIA DATI PRIMA DELL'UPSERT
+        # -------------------------------
+        # Uniforma squadre in minuscolo
+        if "txtechipa1" in df_upload.columns:
+            df_upload["txtechipa1"] = df_upload["txtechipa1"].astype(str).str.strip().str.lower()
+        if "txtechipa2" in df_upload.columns:
+            df_upload["txtechipa2"] = df_upload["txtechipa2"].astype(str).str.strip().str.lower()
+
+        # Sostituisci virgole con punti
+        df_upload = df_upload.applymap(
+            lambda x: str(x).replace(",", ".") if isinstance(x, str) else x
+        )
+
+        # Conversione colonne numeriche
+        num_cols = ["cotaa", "cotad", "cotae"]
+        for col in num_cols:
+            if col in df_upload.columns:
+                df_upload[col] = pd.to_numeric(df_upload[col], errors="coerce")
+
+        # Trasforma in lista di dict
+        data = df_upload.to_dict(orient="records")
+
+        # -------------------------------
+        # ESEGUE UPSERT SU SUPABASE
+        # -------------------------------
+        SUPABASE_URL = "https://dqqlaamfxaconepbdjek.supabase.co"
+        SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxcWxhYW1meGFjb25lcGJkamVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MTcwMTAsImV4cCI6MjA2NzQ5MzAxMH0.K9UmjDqrv-fJcl3jwdLiD5B0Md8JiTMrOAaRKz9ge_g"
+
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        try:
+            res = supabase.table("partite") \
+                .upsert(data, on_conflict=["datameci", "txtechipa1", "txtechipa2"]) \
+                .execute()
+            st.sidebar.success("✅ UPsert completato su Supabase!")
+            st.sidebar.write("Dettagli risposta Supabase:", res)
+        except Exception as e:
+            st.sidebar.error(f"❌ Errore durante l'UPsert su Supabase: {str(e)}")
+
+# -------------------------------------------------------
+# MENU PRINCIPALE
+# -------------------------------------------------------
 
 menu_option = st.sidebar.radio(
     "Naviga tra le sezioni:",
