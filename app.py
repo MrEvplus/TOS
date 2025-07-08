@@ -30,7 +30,7 @@ uploaded_file_upsert = st.sidebar.file_uploader(
 )
 
 if uploaded_file_upsert is not None:
-    df_upload = pd.read_csv(uploaded_file_upsert)
+    df_upload = pd.read_csv(uploaded_file_upsert, sep=";")
     st.sidebar.success("✅ File CSV caricato correttamente!")
     st.sidebar.write("Anteprima dati:", df_upload.head())
 
