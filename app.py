@@ -56,6 +56,9 @@ if uploaded_file_upsert is not None:
         for col in num_cols:
             if col in df_upload.columns:
                 df_upload[col] = pd.to_numeric(df_upload[col], errors="coerce")
+        
+        # Sostituisce NaN con None
+        df_upload = df_upload.where(pd.notnull(df_upload), None)
 
         # Trasforma in lista di dict
         data = df_upload.to_dict(orient="records")
