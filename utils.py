@@ -1,173 +1,145 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import json
+from supabase import create_client
 
 # ----------------------------------------------------------
-# Legge le credenziali Google Sheets
+# Connessione Supabase
 # ----------------------------------------------------------
 
-def get_gsheets_client():
-    """
-    Restituisce un client gspread autorizzato.
-    Funziona sia in locale che su Streamlit Cloud.
-    """
-    try:
-        if "GCP_CREDENTIALS" in st.secrets:
-            gcp_info = json.loads(st.secrets["GCP_CREDENTIALS"])
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(
-                gcp_info,
-                scopes=[
-                    "https://spreadsheets.google.com/feeds",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-            )
-        else:
-            creds = ServiceAccountCredentials.from_json_keyfile_name(
-                "tradingdashboard-465220-562e2e145916.json",
-                scopes=[
-                    "https://spreadsheets.google.com/feeds",
-                    "https://www.googleapis.com/auth/drive"
-                ]
-            )
-    except Exception as e:
-        st.error(f"Errore nella lettura delle credenziali Google Sheets: {e}")
+def load_data_from_supabase():
+    st.sidebar.markdown("### 🌐 Origine: Supabase")
+
+    SUPABASE_URL = st.secrets["https://dqqlaamfxaconepbdjek.supabase.co"]
+    SUPABASE_KEY = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxcWxhYW1meGFjb25lcGJkamVrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5MTcwMTAsImV4cCI6MjA2NzQ5MzAxMH0.K9UmjDqrv-fJcl3jwdLiD5B0Md8JiTMrOAaRKz9ge_g"]
+
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+    res = supabase.table("partite").select("*").execute()
+    df = pd.DataFrame(res.data)
+
+    if df.empty:
+        st.warning("⚠ Nessun dato trovato su Supabase.")
         st.stop()
 
-    client = gspread.authorize(creds)
-    return client
+    # Conversione virgole nei numeri
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].str.replace(",", ".")
 
-# ----------------------------------------------------------
-# Carica i dati da Google Sheets
-# ----------------------------------------------------------
+    # Conversione numerica dove possibile
+    df = df.apply(pd.to_numeric, errors="ignore")
 
-def load_data_from_gsheets():
-    """
-    Carica automaticamente tutti i file Google Sheets relativi
-    al campionato scelto dall'utente.
-    Ritorna:
-        - DataFrame unito di tutte le stagioni
-        - Nome campionato selezionato
-    """
+    # Conversione date
+    if "datameci" in df.columns:
+        df["datameci"] = pd.to_datetime(df["datameci"], errors="coerce")
 
-    st.sidebar.markdown("### 🌐 Origine: Google Sheets")
-
-    client = get_gsheets_client()
-
-    spreadsheets = client.list_spreadsheet_files()
-
-    if not spreadsheets:
-        st.warning("⚠ Nessun Google Sheet trovato nel tuo account.")
-        st.stop()
-
-    # Ricostruisce elenco macro-campionati
-    campionati = set()
-    for s in spreadsheets:
-        nome_split = s["name"].split("_")
-        if len(nome_split) >= 2:
-            campionato = f"{nome_split[0]}_{nome_split[1]}"
-            campionati.add(campionato)
-
-    campionati_disponibili = sorted(list(campionati))
-
-    if not campionati_disponibili:
-        st.warning("⚠ Nessun campionato rilevato nei nomi dei Google Sheets.")
-        st.stop()
-
+    # Campionati disponibili
+    campionati_disponibili = sorted(df["country"].dropna().unique())
     campionato_scelto = st.sidebar.selectbox(
         "Seleziona Campionato:",
-        campionati_disponibili
+        [""] + campionati_disponibili
     )
 
-    # Trova tutti i Google Sheets relativi a quel campionato
-    sheets_da_caricare = [
-        s for s in spreadsheets
-        if s["name"].upper().startswith(campionato_scelto.upper())
-    ]
-
-    if not sheets_da_caricare:
-        st.warning(f"⚠ Nessun file trovato per il campionato selezionato: {campionato_scelto}")
+    if campionato_scelto == "":
+        st.info("ℹ️ Seleziona un campionato per procedere.")
         st.stop()
 
-    lista_df = []
+    df_filtered = df[df["country"] == campionato_scelto]
 
-    for s in sheets_da_caricare:
-        try:
-            spreadsheet = client.open(s["name"])
-            worksheet_names = [ws.title for ws in spreadsheet.worksheets()]
-
-            # Carica sempre il primo foglio (o eventualmente scegli se più fogli)
-            worksheet = spreadsheet.worksheet(worksheet_names[0])
-            data = worksheet.get_all_records()
-
-            if data:
-                df_tmp = pd.DataFrame(data)
-                df_tmp["__file"] = s["name"]
-                df_tmp["country"] = campionato_scelto.upper()
-                lista_df.append(df_tmp)
-                st.sidebar.success(f"✅ Caricato {s['name']}")
-            else:
-                st.sidebar.warning(f"⚠ Il foglio {s['name']} è vuoto.")
-        except Exception as e:
-            st.sidebar.warning(f"⚠ Errore su {s['name']}: {e}")
-
-    if not lista_df:
-        st.error("⚠ Nessun file Google Sheet valido caricato.")
-        st.stop()
-
-    # Unisce tutti i DataFrame
-    df = pd.concat(lista_df, ignore_index=True)
-
-    # ----------------------------------------------------------
-    # 🔥 NUOVO BLOCCO: pulizia Odds
-    # ----------------------------------------------------------
-    for col in ["Odd home", "Odd Away"]:
-        if col in df.columns:
-            # Rimpiazza valori vuoti o stringhe non numeriche con NaN
-            df[col] = df[col].replace(["-", "nan", "NaN", ""], np.nan)
-
-            # Trasforma le virgole in punti decimali
-            df[col] = (
-                df[col]
-                .astype(str)
-                .str.replace(",", ".", regex=False)
-                .str.strip()
-            )
-
-            # Converte in numerico
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    # ----------------------------------------------------------
-    # Selezione stagioni
-    # ----------------------------------------------------------
-
-    if "Stagione" in df.columns:
-        stagioni_disponibili = sorted(df["Stagione"].dropna().unique())
+    # Stagioni disponibili
+    if "sezonul" in df_filtered.columns:
+        stagioni_disponibili = sorted(df_filtered["sezonul"].dropna().unique())
     else:
         stagioni_disponibili = []
 
-    if stagioni_disponibili:
-        stagioni_scelte = st.sidebar.multiselect(
-            "Seleziona le stagioni da includere nell'analisi:",
-            options=stagioni_disponibili,
-            default=stagioni_disponibili
-        )
-        if stagioni_scelte:
-            df = df[df["Stagione"].isin(stagioni_scelte)]
+    stagioni_scelte = st.sidebar.multiselect(
+        "Seleziona le stagioni da includere nell'analisi:",
+        options=stagioni_disponibili,
+        default=stagioni_disponibili
+    )
 
-    st.sidebar.write(f"✅ Righe caricate da Google Sheets: {len(df)}")
+    if stagioni_scelte:
+        df_filtered = df_filtered[df_filtered["sezonul"].isin(stagioni_scelte)]
 
-    return df, campionato_scelto
+    st.sidebar.write(f"✅ Righe caricate da Supabase: {len(df_filtered)}")
+
+    return df_filtered, campionato_scelto
 
 # ----------------------------------------------------------
-# Altre funzioni originali (label_match, extract_minutes)
+# Upload Manuale (Excel o CSV)
+# ----------------------------------------------------------
+
+def load_data_from_file():
+    st.sidebar.markdown("### 📂 Origine: Upload Manuale")
+
+    uploaded_file = st.sidebar.file_uploader(
+        "Carica il tuo file Excel o CSV:",
+        type=["xls", "xlsx", "csv"]
+    )
+
+    if uploaded_file is None:
+        st.info("ℹ️ Carica un file per continuare.")
+        st.stop()
+
+    # Detect file type
+    if uploaded_file.name.endswith(".csv"):
+        df = pd.read_csv(uploaded_file)
+    else:
+        xls = pd.ExcelFile(uploaded_file)
+        sheet_name = xls.sheet_names[0]
+        df = pd.read_excel(xls, sheet_name=sheet_name)
+
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].str.replace(",", ".")
+
+    df = df.apply(pd.to_numeric, errors="ignore")
+
+    if "datameci" in df.columns:
+        df["datameci"] = pd.to_datetime(df["datameci"], errors="coerce")
+
+    if "country" in df.columns:
+        campionati_disponibili = sorted(df["country"].dropna().unique())
+    else:
+        campionati_disponibili = []
+
+    campionato_scelto = st.sidebar.selectbox(
+        "Seleziona Campionato:",
+        [""] + campionati_disponibili
+    )
+
+    if campionato_scelto == "":
+        st.info("ℹ️ Seleziona un campionato per procedere.")
+        st.stop()
+
+    df_filtered = df[df["country"] == campionato_scelto]
+
+    if "sezonul" in df_filtered.columns:
+        stagioni_disponibili = sorted(df_filtered["sezonul"].dropna().unique())
+    else:
+        stagioni_disponibili = []
+
+    stagioni_scelte = st.sidebar.multiselect(
+        "Seleziona le stagioni da includere nell'analisi:",
+        options=stagioni_disponibili,
+        default=stagioni_disponibili
+    )
+
+    if stagioni_scelte:
+        df_filtered = df_filtered[df_filtered["sezonul"].isin(stagioni_scelte)]
+
+    st.sidebar.write(f"✅ Righe caricate da Upload Manuale: {len(df_filtered)}")
+
+    return df_filtered, campionato_scelto
+
+# ----------------------------------------------------------
+# label_match
 # ----------------------------------------------------------
 
 def label_match(row):
-    h = row.get("Odd home", np.nan)
-    a = row.get("Odd Away", np.nan)
+    h = row.get("cotaa", np.nan)
+    a = row.get("cotae", np.nan)
     if np.isnan(h) or np.isnan(a):
         return "Others"
     if h < 1.5:
@@ -186,6 +158,10 @@ def label_match(row):
         return "A_SmallFav 2-3"
     else:
         return "Others"
+
+# ----------------------------------------------------------
+# extract_minutes
+# ----------------------------------------------------------
 
 def extract_minutes(series):
     all_minutes = []
