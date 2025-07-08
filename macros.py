@@ -4,15 +4,87 @@ import numpy as np
 import plotly.graph_objects as go
 from utils import label_match, extract_minutes
 
+def calculate_goal_timeframes(sub_df, label):
+    """
+    Calcola la distribuzione % dei goal segnati e concessi per intervallo di minuti.
+    """
+
+    time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
+
+    # Tenta di leggere colonne minuti goal segnato
+    minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
+    minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+
+    # Fallback su gh1…9 e ga1…9 se mancano i minuti
+    if len(minutes_home) == 0:
+        minutes_home = []
+        for col in ["gh1","gh2","gh3","gh4","gh5","gh6","gh7","gh8","gh9"]:
+            if col in sub_df.columns:
+                val = sub_df[col].values[0]
+                if not pd.isna(val) and val != 0:
+                    minutes_home.append(int(val))
+
+    if len(minutes_away) == 0:
+        minutes_away = []
+        for col in ["ga1","ga2","ga3","ga4","ga5","ga6","ga7","ga8","ga9"]:
+            if col in sub_df.columns:
+                val = sub_df[col].values[0]
+                if not pd.isna(val) and val != 0:
+                    minutes_away.append(int(val))
+
+    # Determina se home o away
+    if label.startswith("H_"):
+        minutes_scored = minutes_home
+        minutes_conceded = minutes_away
+    elif label.startswith("A_"):
+        minutes_scored = minutes_away
+        minutes_conceded = minutes_home
+    else:
+        minutes_scored = minutes_home + minutes_away
+        minutes_conceded = []
+
+    scored_counts = {band: 0 for band in time_bands}
+    for m in minutes_scored:
+        for band in time_bands:
+            low, high = map(int, band.split("-"))
+            if low <= m <= high:
+                scored_counts[band] += 1
+                break
+
+    conceded_counts = {band: 0 for band in time_bands}
+    for m in minutes_conceded:
+        for band in time_bands:
+            low, high = map(int, band.split("-"))
+            if low <= m <= high:
+                conceded_counts[band] += 1
+                break
+
+    total_scored = sum(scored_counts.values())
+    total_conceded = sum(conceded_counts.values())
+
+    scored_percents = {
+        band: round((scored_counts[band] / total_scored * 100), 2) if total_scored > 0 else 0
+        for band in time_bands
+    }
+
+    conceded_percents = {
+        band: round((conceded_counts[band] / total_conceded * 100), 2) if total_conceded > 0 else 0
+        for band in time_bands
+    }
+
+    return scored_percents, conceded_percents
+
+# --------------------------------------------------------
+# MAIN FUNCTION
+# --------------------------------------------------------
+
 def run_macro_stats(df, db_selected):
     st.title(f"Macro Stats per Campionato - {db_selected}")
 
-    # Check se il DataFrame è vuoto
     if df.empty:
         st.warning("⚠️ Il file caricato è vuoto o non contiene righe.")
         st.stop()
 
-    # Check colonne essenziali presenti
     required_cols = [
         "Home", "Away",
         "Home Goal FT", "Away Goal FT",
@@ -26,11 +98,9 @@ def run_macro_stats(df, db_selected):
         st.write("Colonne presenti nel file:", list(df.columns))
         st.stop()
 
-    # Sostituisci NaN o stringhe vuote nelle colonne usate per la groupby
     df["country"] = df["country"].fillna("Unknown").astype(str).replace("", "Unknown")
     df["Stagione"] = df["Stagione"].fillna("Unknown").astype(str).replace("", "Unknown")
 
-    # Crea colonne mancanti se non esistono
     if "goals_total" not in df.columns:
         df["goals_total"] = df["Home Goal FT"] + df["Away Goal FT"]
 
@@ -55,7 +125,6 @@ def run_macro_stats(df, db_selected):
 
     home_col = "Home"
 
-    # League Stats Summary
     group_cols = ["country", "Stagione"]
     grouped = df.groupby(group_cols).agg(
         Matches=(home_col, "count"),
@@ -76,20 +145,6 @@ def run_macro_stats(df, db_selected):
         BTTS_pct=("btts", lambda x: x.mean() * 100),
     ).reset_index()
 
-    if not grouped.empty:
-        media_row = grouped.drop(columns=["country", "Stagione"]).mean(numeric_only=True)
-        media_row["country"] = grouped["country"].iloc[0]
-        media_row["Stagione"] = "Totale"
-        media_row["Matches"] = grouped["Matches"].sum()
-
-        if not media_row.drop(["country", "Stagione"]).isna().all():
-            grouped = pd.concat([grouped, media_row.to_frame().T], ignore_index=True)
-
-    # Rimuove eventuali righe completamente vuote
-    grouped = grouped.dropna(how='all')
-    grouped = grouped[~(grouped == "").all(axis=1)]
-
-    # Rinominare colonne pct -> %
     new_columns = {}
     for col in grouped.columns:
         if "pct" in col:
@@ -99,29 +154,11 @@ def run_macro_stats(df, db_selected):
         new_columns[col] = new_col
 
     grouped.rename(columns=new_columns, inplace=True)
-
     cols_numeric = grouped.select_dtypes(include=[np.number]).columns
     grouped[cols_numeric] = grouped[cols_numeric].round(2)
 
     st.subheader(f"✅ League Stats Summary - {db_selected}")
-
-    if hasattr(st, "column_config"):
-        st.dataframe(
-            grouped.style.format(precision=2),
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "country": st.column_config.Column(width="small", pinned="left"),
-                "Stagione": st.column_config.Column(width="small", pinned="left"),
-            }
-        )
-    else:
-        grouped_no_index = grouped.reset_index(drop=True)
-        st.dataframe(
-            grouped_no_index.style.format(precision=2),
-            use_container_width=True,
-            hide_index=True
-        )
+    st.dataframe(grouped, use_container_width=True, hide_index=True)
 
     # League Data by Start Price
     df["Label"] = df.apply(label_match, axis=1)
@@ -148,81 +185,22 @@ def run_macro_stats(df, db_selected):
     group_label[cols_numeric] = group_label[cols_numeric].round(2)
 
     st.subheader(f"✅ League Data by Start Price - {db_selected}")
+    st.dataframe(group_label, use_container_width=True, hide_index=True)
 
-    if hasattr(st, "column_config"):
-        st.dataframe(
-            group_label.style.format(precision=2),
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "Label": st.column_config.Column(width="medium", pinned="left"),
-            }
-        )
-    else:
-        group_label_no_index = group_label.reset_index(drop=True)
-        st.dataframe(
-            group_label_no_index.style.format(precision=2),
-            use_container_width=True,
-            hide_index=True
-        )
-
-    # Plotly Goal Time Frame - affiancati 2 per riga
+    # Goal time frame plots
     st.subheader(f"✅ Distribuzione Goal Time Frame % per Label - {db_selected}")
-
-    time_bands = ["0-15", "16-30", "31-45", "46-60", "61-75", "76-90"]
 
     labels = list(df["Label"].dropna().unique())
 
     for i in range(0, len(labels), 2):
         cols = st.columns(2)
-
         for j in range(2):
             if i + j < len(labels):
                 label = labels[i + j]
-
                 sub_df = df[df["Label"] == label]
-                minutes_home = extract_minutes(sub_df["minuti goal segnato home"]) if "minuti goal segnato home" in sub_df.columns else []
-                minutes_away = extract_minutes(sub_df["minuti goal segnato away"]) if "minuti goal segnato away" in sub_df.columns else []
+                scored_percents, conceded_percents = calculate_goal_timeframes(sub_df, label)
 
-                if label.startswith("H_"):
-                    minutes_scored = minutes_home
-                    minutes_conceded = minutes_away
-                elif label.startswith("A_"):
-                    minutes_scored = minutes_away
-                    minutes_conceded = minutes_home
-                else:
-                    minutes_scored = minutes_home + minutes_away
-                    minutes_conceded = []
-
-                total_scored = len(minutes_scored)
-                total_conceded = len(minutes_conceded)
-
-                scored_counts = {band: 0 for band in time_bands}
-                conceded_counts = {band: 0 for band in time_bands}
-
-                for m in minutes_scored:
-                    for band in time_bands:
-                        low, high = map(int, band.split("-"))
-                        if low <= m <= high:
-                            scored_counts[band] += 1
-                            break
-
-                for m in minutes_conceded:
-                    for band in time_bands:
-                        low, high = map(int, band.split("-"))
-                        if low <= m <= high:
-                            conceded_counts[band] += 1
-                            break
-
-                scored_percents = {
-                    band: round((scored_counts[band] / total_scored * 100), 2) if total_scored > 0 else 0
-                    for band in time_bands
-                }
-
-                conceded_percents = {
-                    band: round((conceded_counts[band] / total_conceded * 100), 2) if total_conceded > 0 else 0
-                    for band in time_bands
-                }
+                time_bands = list(scored_percents.keys())
 
                 fig = go.Figure()
 
@@ -230,28 +208,14 @@ def run_macro_stats(df, db_selected):
                     x=time_bands,
                     y=[scored_percents[b] for b in time_bands],
                     name='Goals Scored (%)',
-                    marker_color='green',
-                    text=[f"{scored_percents[b]:.2f}%" for b in time_bands],
-                    textposition='outside',
-                    customdata=[scored_counts[b] for b in time_bands],
-                    hovertemplate=
-                        '<b>%{x}</b><br>' +
-                        'Scored Goals: %{customdata}<br>' +
-                        'Percentage: %{y:.2f}%<extra></extra>'
+                    marker_color='green'
                 ))
 
                 fig.add_trace(go.Bar(
                     x=time_bands,
                     y=[conceded_percents[b] for b in time_bands],
                     name='Goals Conceded (%)',
-                    marker_color='red',
-                    text=[f"{conceded_percents[b]:.2f}%" for b in time_bands],
-                    textposition='outside',
-                    customdata=[conceded_counts[b] for b in time_bands],
-                    hovertemplate=
-                        '<b>%{x}</b><br>' +
-                        'Conceded Goals: %{customdata}<br>' +
-                        'Percentage: %{y:.2f}%<extra></extra>'
+                    marker_color='red'
                 ))
 
                 fig.update_layout(
