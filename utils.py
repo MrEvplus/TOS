@@ -23,7 +23,13 @@ def load_data_from_supabase():
         st.warning("⚠ Nessun dato trovato su Supabase.")
         st.stop()
 
-    # Conversione eventuali virgole in punti
+    # -------------------------------------------------------
+    # CORREZIONE FONDAMENTALE:
+    # pulisci intestazioni colonne (spazi + minuscolo)
+    # -------------------------------------------------------
+    df.columns = df.columns.str.strip().str.lower()
+
+    # Conversione eventuali virgole in punti (solo per stringhe)
     for col in df.columns:
         if df[col].dtype == object:
             df[col] = df[col].str.replace(",", ".")
@@ -97,6 +103,9 @@ def load_data_from_file():
         xls = pd.ExcelFile(uploaded_file)
         sheet_name = xls.sheet_names[0]
         df = pd.read_excel(xls, sheet_name=sheet_name)
+
+    # CORREZIONE FONDAMENTALE anche per upload manuale
+    df.columns = df.columns.str.strip().str.lower()
 
     for col in df.columns:
         if df[col].dtype == object:
@@ -199,6 +208,7 @@ def extract_minutes(series):
     """
     all_minutes = []
 
+    # Sostituisci NaN con stringa vuota
     series = series.fillna("")
 
     for val in series:
