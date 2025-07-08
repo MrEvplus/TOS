@@ -148,26 +148,45 @@ def load_data_from_file():
 # ----------------------------------------------------------
 
 def label_match(row):
-    h = row.get("cotaa", np.nan)
-    a = row.get("cotae", np.nan)
+    """
+    Classifica il match in una fascia di quote basata sulle quote cotaa, cotae, cotad
+    """
+
+    try:
+        h = float(row.get("cotaa", np.nan))
+        d = float(row.get("cotad", np.nan))
+        a = float(row.get("cotae", np.nan))
+    except:
+        return "Others"
+
     if np.isnan(h) or np.isnan(a):
         return "Others"
-    if h < 1.5:
-        return "H_StrongFav <1.5"
+
+    # Classificazione per quote Home
+    if 1 <= h < 1.5:
+        return "H_BigFav 1-1.5"
     elif 1.5 <= h < 2:
-        return "H_MediumFav 1.5-2"
+        return "H_Fav 1.5-2"
     elif 2 <= h < 3:
         return "H_SmallFav 2-3"
-    elif h <= 3 and a <= 3:
-        return "SuperCompetitive H-A<3"
-    elif a < 1.5:
-        return "A_StrongFav <1.5"
+    elif 3 <= h < 5:
+        return "H_Dog 3-5"
+    elif h >= 5:
+        return "H_BigDog 5+"
+
+    # Classificazione per quote Away
+    if 1 <= a < 1.5:
+        return "A_BigFav 1-1.5"
     elif 1.5 <= a < 2:
-        return "A_MediumFav 1.5-2"
+        return "A_Fav 1.5-2"
     elif 2 <= a < 3:
         return "A_SmallFav 2-3"
-    else:
-        return "Others"
+    elif 3 <= a < 5:
+        return "A_Dog 3-5"
+    elif a >= 5:
+        return "A_BigDog 5+"
+
+    return "Others"
 
 # ----------------------------------------------------------
 # extract_minutes
