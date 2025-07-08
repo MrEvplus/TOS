@@ -15,9 +15,25 @@ def load_data_from_supabase():
 
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-    # Scarica tutti i dati dalla tabella
-    res = supabase.table("partite").select("*").execute()
-    df = pd.DataFrame(res.data)
+    # -------------------------------------------------------
+    # PAGINAZIONE per caricare tutte le righe
+    # -------------------------------------------------------
+
+    limit = 1000
+    offset = 0
+    all_data = []
+
+    while True:
+        res = supabase.table("partite").select("*").range(offset, offset + limit - 1).execute()
+        batch_data = res.data
+
+        if not batch_data:
+            break
+
+        all_data.extend(batch_data)
+        offset += limit
+
+    df = pd.DataFrame(all_data)
 
     if df.empty:
         st.warning("⚠ Nessun dato trovato su Supabase.")
@@ -159,7 +175,7 @@ def load_data_from_file():
 def label_match(row):
     """
     Classifica il match in una fascia di quote
-    basata sulle quote Odd home e Odd Away.
+    basata sulle quote odd home e odd away.
 
     Regole:
       - SuperCompetitive → sia Home che Away <= 3.0
@@ -173,15 +189,15 @@ def label_match(row):
     """
 
     try:
-        h = float(row.get("Odd home", np.nan))
-        a = float(row.get("Odd Away", np.nan))
+        h = float(row.get("odd home", np.nan))
+        a = float(row.get("odd away", np.nan))
     except:
         return "Others"
 
     if np.isnan(h) or np.isnan(a):
         return "Others"
 
-    # SuperCompetitive: entrambe le quote <= 3
+    # SuperCompetitive
     if h <= 3 and a <= 3:
         return "SuperCompetitive H<=3 A<=3"
 
