@@ -40,8 +40,15 @@ if uploaded_file_upsert is not None:
     if st.sidebar.button("👉 Esegui UPsert su Supabase"):
 
         # -------------------------------
-        # PULIZIA DATI PRIMA DELL'UPSERT
+        # RINOMINA LE COLONNE SE NECESSARIO
         # -------------------------------
+        rename_map = {
+            "Data": "datameci",
+            "Home": "txtechipa1",
+            "Away": "txtechipa2"
+        }
+        df_upload.rename(columns=rename_map, inplace=True)
+
         # Uniforma squadre in minuscolo
         if "txtechipa1" in df_upload.columns:
             df_upload["txtechipa1"] = df_upload["txtechipa1"].astype(str).str.strip().str.lower()
@@ -75,6 +82,10 @@ if uploaded_file_upsert is not None:
                         record[k] = None
 
         data_clean = data
+
+        # Debug: stampa un esempio record
+        if len(data_clean) > 0:
+            st.sidebar.write("✅ Esempio record pronto per UPsert:", data_clean[0])
 
         # -------------------------------
         # ESEGUE UPSERT SU SUPABASE
