@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import json
 from macros import run_macro_stats
 from squadre import run_team_stats
 from pre_match import run_pre_match
@@ -30,6 +31,7 @@ uploaded_file_upsert = st.sidebar.file_uploader(
 )
 
 if uploaded_file_upsert is not None:
+    # Usa sep=";" per CSV separati da punto e virgola
     df_upload = pd.read_csv(uploaded_file_upsert, sep=";")
     st.sidebar.success("✅ File CSV caricato correttamente!")
     st.sidebar.write("Anteprima dati:", df_upload.head())
@@ -56,12 +58,23 @@ if uploaded_file_upsert is not None:
         for col in num_cols:
             if col in df_upload.columns:
                 df_upload[col] = pd.to_numeric(df_upload[col], errors="coerce")
-        
+
         # Sostituisce NaN con None
         df_upload = df_upload.where(pd.notnull(df_upload), None)
 
         # Trasforma in lista di dict
         data = df_upload.to_dict(orient="records")
+
+        # --------------------------------
+        # FIX DEFINITIVO PER JSON NAN
+        # --------------------------------
+        try:
+            # Trasforma JSON e ricarica per escludere eventuali NaN
+            json_data = json.dumps(data, allow_nan=False)
+            data_clean = json.loads(json_data)
+        except ValueError as e:
+            st.sidebar.error(f"❌ Errore JSON durante serializzazione: {e}")
+            st.stop()
 
         # -------------------------------
         # ESEGUE UPSERT SU SUPABASE
@@ -73,7 +86,7 @@ if uploaded_file_upsert is not None:
 
         try:
             res = supabase.table("partite") \
-                .upsert(data, on_conflict=["datameci", "txtechipa1", "txtechipa2"]) \
+                .upsert(data_clean, on_conflict=["datameci", "txtechipa1", "txtechipa2"]) \
                 .execute()
             st.sidebar.success("✅ UPsert completato su Supabase!")
             st.sidebar.write("Dettagli risposta Supabase:", res)
