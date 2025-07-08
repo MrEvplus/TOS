@@ -172,29 +172,25 @@ def label_match(row):
     if np.isnan(h) or np.isnan(a):
         return "Others"
 
+    # Check SuperCompetitive
+    if h <= 3 and a <= 3:
+        return "SuperCompetitive H<3 A<3"
+
     # Classificazione per quote Home
-    if 1 <= h < 1.5:
-        return "H_BigFav 1-1.5"
-    elif 1.5 <= h < 2:
-        return "H_Fav 1.5-2"
-    elif 2 <= h < 3:
+    if h < 1.5:
+        return "H_StrongFav <1.5"
+    elif 1.5 <= h <= 2:
+        return "H_MediumFav 1.5-2"
+    elif 2 < h <= 3:
         return "H_SmallFav 2-3"
-    elif 3 <= h < 5:
-        return "H_Dog 3-5"
-    elif h >= 5:
-        return "H_BigDog 5+"
 
     # Classificazione per quote Away
-    if 1 <= a < 1.5:
-        return "A_BigFav 1-1.5"
-    elif 1.5 <= a < 2:
-        return "A_Fav 1.5-2"
-    elif 2 <= a < 3:
+    if a < 1.5:
+        return "A_StrongFav <1.5"
+    elif 1.5 <= a <= 2:
+        return "A_MediumFav 1.5-2"
+    elif 2 < a <= 3:
         return "A_SmallFav 2-3"
-    elif 3 <= a < 5:
-        return "A_Dog 3-5"
-    elif a >= 5:
-        return "A_BigDog 5+"
 
     return "Others"
 
