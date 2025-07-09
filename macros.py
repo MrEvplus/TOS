@@ -60,16 +60,19 @@ def calculate_goal_timeframes(sub_df, label):
                 if not pd.isna(val) and val != 0:
                     minutes_away.append(int(val))
 
-    # Determina se home o away
+    # ✅ FIXATO QUI IL BLOCCO
     if label.startswith("H_"):
         minutes_scored = minutes_home
         minutes_conceded = minutes_away
     elif label.startswith("A_"):
         minutes_scored = minutes_away
         minutes_conceded = minutes_home
+    elif label.startswith("SuperCompetitive"):
+        minutes_scored = minutes_home
+        minutes_conceded = minutes_away
     else:
         minutes_scored = minutes_home + minutes_away
-        minutes_conceded = []
+        minutes_conceded = minutes_away + minutes_home
 
     scored_counts = {band: 0 for band in time_bands}
     for m in minutes_scored:
