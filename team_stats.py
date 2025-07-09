@@ -1,4 +1,7 @@
 from macros import calculate_goal_timeframes
+import streamlit as st
+import pandas as pd
+import plotly.express as px
 
 def run_team_stats(df, db_selected):
     st.title(f"Statistiche per Squadre - {db_selected}")
@@ -9,8 +12,8 @@ def run_team_stats(df, db_selected):
 
     st.info("Esempio di calcolo Goal Time Frame % su tutte le partite.")
 
-    # Esempio: calcola sui totali
-    scored_percents, conceded_percents = calculate_goal_timeframes(df, label="All")
+    # ✅ Usa label vuoto per triggerare calcolo totale goals scored/conceded
+    scored_percents, conceded_percents = calculate_goal_timeframes(df, label="")
 
     df_plot = pd.DataFrame({
         "TimeFrame": list(scored_percents.keys()),
@@ -18,7 +21,6 @@ def run_team_stats(df, db_selected):
         "Goals Conceded (%)": list(conceded_percents.values())
     })
 
-    import plotly.express as px
     fig = px.bar(
         df_plot,
         x="TimeFrame",
