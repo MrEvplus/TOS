@@ -60,7 +60,20 @@ def calculate_goal_timeframes(sub_df, label):
                 if not pd.isna(val) and val != 0:
                     minutes_away.append(int(val))
 
-    # ✅ FIXATO QUI IL BLOCCO
+    # ✅ FIX: se ancora vuoti, usa goal FT come finti minuti
+    if len(minutes_home) == 0 and "Home Goal FT" in sub_df.columns:
+        for _, row in sub_df.iterrows():
+            n_goals = int(row.get("Home Goal FT", 0))
+            for _ in range(n_goals):
+                minutes_home.append(90)
+
+    if len(minutes_away) == 0 and "Away Goal FT" in sub_df.columns:
+        for _, row in sub_df.iterrows():
+            n_goals = int(row.get("Away Goal FT", 0))
+            for _ in range(n_goals):
+                minutes_away.append(91)
+
+    # Determina se home o away
     if label.startswith("H_"):
         minutes_scored = minutes_home
         minutes_conceded = minutes_away
